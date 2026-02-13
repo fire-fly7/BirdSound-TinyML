@@ -1,8 +1,10 @@
 import tensorflow as tf
 from keras import layers, models
 
-def create_cnn_model(input_shape, num_classes):
+def create_model(input_shape, num_classes):
+
     model = models.Sequential()
+    model.name = "CNN_Model"
 
     # Initial Conv Layer
     model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape, data_format='channels_last'))
