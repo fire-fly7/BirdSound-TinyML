@@ -9,7 +9,7 @@ def convert_tflite_to_c_array(tflite_model_path, output_dir=None):
     # 2. 自动生成名称
     base_name = os.path.splitext(os.path.basename(tflite_model_path))[0]
 
-    array_name = f"{base_name.lower()}_model_data"
+    array_name = f"{base_name.lower()}_data"
     header_guard = array_name.upper() + "_H"
 
     # 3. 设置输出目录
@@ -27,10 +27,8 @@ def convert_tflite_to_c_array(tflite_model_path, output_dir=None):
 
         f.write('#include <cstdint>\n')
         f.write('#include <cstddef>\n\n')
+        f.write('alignas(16) const unsigned char model_data[] = {\n')
 
-        # ⭐ 关键：const + 对齐
-        f.write('alignas(16) const unsigned char ')
-        f.write(f'{array_name}[] = {{\n')
 
         for i, byte in enumerate(tflite_data):
             if i % 12 == 0:
@@ -38,13 +36,13 @@ def convert_tflite_to_c_array(tflite_model_path, output_dir=None):
             f.write(f' 0x{byte:02x},')
 
         f.write('\n};\n\n')
-        f.write(f'const unsigned int {array_name}_len = {len(tflite_data)};\n')
+        f.write(f'const unsigned int model_data_len = {len(tflite_data)};\n')
 
         f.write(f'\n#endif // {header_guard}\n')
 
     print(f"✅ 模型已转换为 C 数组头文件：{output_header_path}")
 
 convert_tflite_to_c_array(
-    "",
+    "src\model_train&test\TinyML_model\MobileNetV2.tflite",
     output_dir=r"src\model_train&test\TinyML_model"
 )

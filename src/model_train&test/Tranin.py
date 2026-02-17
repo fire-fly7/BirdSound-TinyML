@@ -4,7 +4,7 @@ from tensorflow.python.keras.utils.np_utils import to_categorical
 # from construct_model.DS_CNN_Model import create_model
 # from construct_model.CNN_Model import create_model
 # from construct_model.MobileNetV2 import create_model
-# from construct_model.BC_ResNet import create_model
+from construct_model.BC_ResNet import create_model
 
 # 1. 加载数据
 train_data = np.load('dataset_processing/output/MFCC_dataset_D/train_data.npy') #特征数据
@@ -43,9 +43,9 @@ print('\nTest accuracy:', test_acc)
 
 # 9. 保存模型
 module_name = model.name
-output_name = f"{module_name}_model.h5"
+output_name = f"{module_name}.h5"
 save_dir = r"src\model_train&test\TinyML_model"
-output_path = os.path.join(save_dir, f"{module_name}_model.h5")
+output_path = os.path.join(save_dir, f"{module_name}.h5")
 model.save(output_path)
 
 print("模型已保存为:", output_path)
