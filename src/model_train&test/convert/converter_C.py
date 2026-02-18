@@ -25,8 +25,8 @@ def convert_tflite_to_c_array(tflite_model_path, output_dir=None):
         f.write(f'#ifndef {header_guard}\n')
         f.write(f'#define {header_guard}\n\n')
 
-        f.write('#include <cstdint>\n')
-        f.write('#include <cstddef>\n\n')
+        f.write('#include <stdint>\n')
+        f.write('#include <stddef>\n\n')
         f.write('alignas(16) const unsigned char model_data[] = {\n')
 
 
