@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,20 @@ DEFAULT_CALIBRATION_DATA = (
     / "MFCC_dataset_D"
     / "train_data.npy"
 )
+FRONTEND_CONFIG_PATH = (
+    REPOSITORY_ROOT
+    / "dataset_processing"
+    / "acoustic_frontend_config.json"
+)
+
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from dataset_processing.acoustic_frontend import (  # noqa: E402
+    config_sha256,
+    load_config,
+    load_config_data,
+)
 
 
 def resolve_path(path_text):
@@ -31,7 +46,11 @@ def resolve_path(path_text):
 
 def get_model_paths(args):
     if args.all:
-        model_paths = sorted(MODEL_DIRECTORY.glob("*.h5"))
+        model_paths = sorted(
+            path
+            for path in MODEL_DIRECTORY.glob("*.h5")
+            if not path.name.endswith(".weights.h5")
+        )
         if not model_paths:
             raise FileNotFoundError(
                 f"模型目录中没有.h5文件：{MODEL_DIRECTORY}"
@@ -73,6 +92,64 @@ def load_calibration_data(data_path, input_shape):
         raise ValueError("代表性数据集为空。")
 
     return prepared_data
+
+
+def read_required_json(path, description):
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"缺少{description}：{path}。请重新生成数据或重新训练模型。"
+        )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate_frontend_metadata(
+    model_path,
+    calibration_path,
+    input_shape,
+    frontend_config_path,
+):
+    config_data = load_config_data(frontend_config_path)
+    config = load_config(frontend_config_path)
+    expected_hash = config_sha256(config_data)
+    expected_shape = tuple(config.model_input_shape)
+
+    if tuple(int(size) for size in input_shape) != expected_shape:
+        raise ValueError(
+            "模型输入形状与当前声学前端配置不一致："
+            f"模型={tuple(input_shape)}，前端={expected_shape}。"
+        )
+
+    dataset_metadata_path = calibration_path.parent / "feature_config.json"
+    dataset_metadata = read_required_json(
+        dataset_metadata_path,
+        "代表性数据集的feature_config.json",
+    )
+    model_metadata_path = model_path.with_suffix(".frontend.json")
+    model_metadata = read_required_json(
+        model_metadata_path,
+        "模型声学前端元数据",
+    )
+
+    dataset_hash = dataset_metadata.get("frontend_config_sha256")
+    model_hash = model_metadata.get("frontend_config_sha256")
+    mismatches = []
+    if dataset_hash != expected_hash:
+        mismatches.append(f"代表性数据={dataset_hash!r}")
+    if model_hash != expected_hash:
+        mismatches.append(f"模型={model_hash!r}")
+    if mismatches:
+        raise ValueError(
+            "INT8转换检测到声学前端配置哈希不一致："
+            + "，".join(mismatches)
+            + f"，当前配置={expected_hash}。"
+        )
+
+    return {
+        "frontend_config_sha256": expected_hash,
+        "frontend_config": config_data,
+        "dataset_metadata_path": str(dataset_metadata_path),
+        "model_metadata_path": str(model_metadata_path),
+    }
 
 
 def build_representative_dataset(data, sample_count):
@@ -212,6 +289,12 @@ def convert_model(model_path, args):
         )
 
     calibration_path = resolve_path(args.calibration_data)
+    frontend_metadata = validate_frontend_metadata(
+        model_path,
+        calibration_path,
+        input_shape,
+        resolve_path(args.frontend_config),
+    )
     calibration_data = load_calibration_data(
         calibration_path,
         input_shape,
@@ -239,6 +322,7 @@ def convert_model(model_path, args):
         int8_model,
         first_sample,
     )
+    quantization_info.update(frontend_metadata)
 
     output_directory = resolve_path(args.output_dir)
     output_directory.mkdir(parents=True, exist_ok=True)
@@ -259,6 +343,10 @@ def convert_model(model_path, args):
 
     print(f"完整INT8模型已保存：{output_path}")
     print(f"量化参数已保存：{info_path}")
+    print(
+        "声学前端配置SHA-256："
+        f"{quantization_info['frontend_config_sha256']}"
+    )
     print(
         "输入量化参数："
         f"scale={quantization_info['input']['scale']}，"
@@ -289,6 +377,11 @@ def parse_arguments():
         "--calibration-data",
         default=str(DEFAULT_CALIBRATION_DATA),
         help="用于INT8校准的训练特征train_data.npy路径。",
+    )
+    parser.add_argument(
+        "--frontend-config",
+        default=str(FRONTEND_CONFIG_PATH),
+        help="统一声学前端JSON配置；必须与数据和模型元数据哈希一致。",
     )
     parser.add_argument(
         "--calibration-samples",

@@ -12,6 +12,20 @@ from sklearn.model_selection import train_test_split
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 REPOSITORY_ROOT = SCRIPT_DIRECTORY.parents[1]
 MODEL_DIRECTORY = SCRIPT_DIRECTORY / "TinyML_model"
+FRONTEND_CONFIG_PATH = (
+    REPOSITORY_ROOT
+    / "dataset_processing"
+    / "acoustic_frontend_config.json"
+)
+
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from dataset_processing.acoustic_frontend import (  # noqa: E402
+    config_sha256,
+    load_config,
+    load_config_data,
+)
 
 DEFAULT_DATA_DIRECTORIES = [
     REPOSITORY_ROOT
@@ -122,6 +136,47 @@ def load_datasets(data_directory):
     return train_data, train_labels, test_data, test_labels
 
 
+def validate_frontend_metadata(
+    data_directory,
+    frontend_config_path,
+    input_shape,
+):
+    config_data = load_config_data(frontend_config_path)
+    config = load_config(frontend_config_path)
+    expected_hash = config_sha256(config_data)
+    metadata_path = data_directory / "feature_config.json"
+
+    if not metadata_path.is_file():
+        raise FileNotFoundError(
+            f"训练数据缺少声学前端元数据：{metadata_path}。"
+            "请使用data_sugment_MFCC.py重新生成数据。"
+        )
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    actual_hash = metadata.get("frontend_config_sha256")
+    if actual_hash != expected_hash:
+        raise ValueError(
+            "训练数据与当前声学前端配置不一致："
+            f"数据哈希={actual_hash!r}，当前哈希={expected_hash}。"
+        )
+
+    expected_shape = tuple(config.model_input_shape)
+    if tuple(input_shape) != expected_shape:
+        raise ValueError(
+            "训练数据形状与声学前端配置不一致："
+            f"数据形状={tuple(input_shape)}，预期={expected_shape}。"
+        )
+
+    metadata_shape = metadata.get("model_input_shape")
+    if metadata_shape is not None and tuple(metadata_shape) != expected_shape:
+        raise ValueError(
+            "feature_config.json中的模型输入形状与当前配置不一致："
+            f"{metadata_shape} != {list(expected_shape)}。"
+        )
+
+    return config_data, expected_hash, metadata_path
+
+
 def normalize_labels(train_labels, test_labels):
     class_ids = np.unique(train_labels)
     expected_ids = np.arange(len(class_ids))
@@ -229,6 +284,17 @@ def train(args):
         test_labels,
     ) = load_datasets(data_directory)
 
+    frontend_config_path = resolve_path(args.frontend_config)
+    (
+        frontend_config_data,
+        frontend_config_hash,
+        feature_metadata_path,
+    ) = validate_frontend_metadata(
+        data_directory,
+        frontend_config_path,
+        train_data.shape[1:],
+    )
+
     class_ids = normalize_labels(
         train_labels,
         test_labels,
@@ -292,6 +358,7 @@ def train(args):
         output_directory
         / f"{model.name}.training.csv"
     )
+    frontend_metadata_path = model_path.with_suffix(".frontend.json")
 
     callbacks = [
         tf.keras.callbacks.EarlyStopping(
@@ -363,6 +430,15 @@ def train(args):
 
     # EarlyStopping已恢复最佳权重，再保存供INT8转换使用的模型。
     model.save(model_path)
+    save_json(
+        frontend_metadata_path,
+        {
+            "frontend_config_sha256": frontend_config_hash,
+            "frontend_config": frontend_config_data,
+            "model_input_shape": list(train_data.shape[1:]),
+            "source_feature_metadata": str(feature_metadata_path),
+        },
+    )
 
     test_loss, test_accuracy = model.evaluate(
         test_data,
@@ -400,6 +476,8 @@ def train(args):
         "patience": args.patience,
         "initial_learning_rate": args.learning_rate,
         "random_seed": args.seed,
+        "frontend_config_sha256": frontend_config_hash,
+        "frontend_metadata_path": str(frontend_metadata_path),
     }
     save_json(metrics_path, metrics)
 
@@ -407,6 +485,7 @@ def train(args):
     print(f"测试损失：{test_loss:.6f}")
     print(f"测试准确率：{test_accuracy:.6f}")
     print(f"模型已保存：{model_path}")
+    print(f"声学前端元数据：{frontend_metadata_path}")
     print(f"训练历史：{history_path}")
     print(f"测试结果：{metrics_path}")
 
@@ -430,6 +509,11 @@ def parse_arguments():
         "--output-dir",
         default=str(MODEL_DIRECTORY),
         help="模型和训练记录输出目录。",
+    )
+    parser.add_argument(
+        "--frontend-config",
+        default=str(FRONTEND_CONFIG_PATH),
+        help="统一声学前端JSON配置；必须与数据集元数据哈希一致。",
     )
     parser.add_argument(
         "--epochs",
