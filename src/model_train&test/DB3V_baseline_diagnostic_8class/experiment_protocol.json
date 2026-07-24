@@ -1,0 +1,53 @@
+{
+  "experiment": "DB3V as an alternative baseline training dataset",
+  "status": "Diagnostic only; excluded from formal baseline selection",
+  "dataset_source": {
+    "dataset": "DB3V",
+    "zenodo": "https://doi.org/10.5281/zenodo.11544734"
+  },
+  "task": "Eight-class single-label recording classification with softmax and categorical cross-entropy",
+  "split": {
+    "unit": "Eight-second recording",
+    "stratification": "Region and class",
+    "seed": 42,
+    "train_recordings": 8526,
+    "validation_recordings": 2132,
+    "regions": {
+      "1": {
+        "train_recordings": 4200,
+        "validation_recordings": 1051
+      },
+      "2": {
+        "train_recordings": 602,
+        "validation_recordings": 150
+      },
+      "3": {
+        "train_recordings": 3724,
+        "validation_recordings": 931
+      }
+    }
+  },
+  "training": {
+    "model": "DS-CNN",
+    "features": [
+      "MFCC",
+      "LogMel",
+      "PCEN"
+    ],
+    "seed": 42,
+    "maximum_epochs": 30,
+    "early_stopping_patience": 8,
+    "selection_metric": "DB3V validation recording-level macro-F1"
+  },
+  "external_test": {
+    "dataset": "Full BirdSet SSW target subset",
+    "long_recordings": 211,
+    "clips": 19678,
+    "relationship_to_training": "Independent dataset; no BirdSet clip was used for training or model selection"
+  },
+  "limitations": [
+    "All three DB3V regions occur in both training and validation.",
+    "The internal validation result measures same-region holdout recognition, not unseen-region generalization.",
+    "Training on DB3V consumes the target regional domain and invalidates DB3V's role as an independent regional generalization test."
+  ]
+}

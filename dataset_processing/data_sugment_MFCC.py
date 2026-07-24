@@ -1,4 +1,8 @@
-"""Create a leakage-resistant eight-class MFCC dataset from Xeno-canto WAVs."""
+"""Create a leakage-resistant eight-class spectral dataset from Xeno-canto WAVs.
+
+MFCC, Log-Mel, and PCEN share the exact same recording/session split and slice
+selection protocol so their model results are directly comparable.
+"""
 
 from __future__ import annotations
 
@@ -28,21 +32,27 @@ SAMPLE_RATE = 16_000
 SAMPLES_PER_SLICE = SAMPLE_RATE
 MFCC_COUNT = 13
 MFCC_FRAMES = 32
+MEL_COUNT = 40
+FEATURE_CHOICES = ("mfcc", "logmel", "pcen")
 VALIDATION_RATIO = 0.2
 RANDOM_SEED = 42
 MAX_SLICES_PER_RECORDING = 8
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(
+    default_feature: str = "mfcc", default_output_dir: Path | None = None
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--input-dir", type=Path, default=Path("row_dataset") / "row_bird_dataset_A"
+        "--input-dir", type=Path, default=Path("row_dataset") / "row_bird_dataset_A_next"
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("dataset_processing") / "output" / "MFCC_dataset_A",
+        default=default_output_dir
+        or Path("dataset_processing") / "output" / f"{default_feature.upper()}_dataset_A_8class",
     )
+    parser.add_argument("--feature", choices=FEATURE_CHOICES, default=default_feature)
     parser.add_argument("--validation-ratio", type=float, default=VALIDATION_RATIO)
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     parser.add_argument(
@@ -220,30 +230,42 @@ def selected_slice_indices(total_slices: int, recording_id: str, seed: int, maxi
     ]
 
 
-def fixed_mfcc_frames(mfcc: np.ndarray) -> np.ndarray:
-    """Return a fixed-length MFCC frame matrix."""
-    mfcc = mfcc[:MFCC_FRAMES]
-    if mfcc.shape[0] < MFCC_FRAMES:
-        mfcc = np.pad(mfcc, ((0, MFCC_FRAMES - mfcc.shape[0]), (0, 0)))
-    return mfcc.astype(np.float32)
+def fixed_feature_frames(feature: np.ndarray) -> np.ndarray:
+    """Return a fixed 32-frame feature matrix."""
+    feature = feature[:MFCC_FRAMES]
+    if feature.shape[0] < MFCC_FRAMES:
+        feature = np.pad(feature, ((0, MFCC_FRAMES - feature.shape[0]), (0, 0)))
+    return feature.astype(np.float32)
 
 
-def mfcc_for_segments(segments: np.ndarray) -> np.ndarray:
-    """Extract per-segment MFCCs with the same semantics as the original pipeline.
-
-    Mel spectra are batched for speed, while dB clipping remains per segment so
-    librosa's default ``top_db`` behavior stays equivalent to individual calls.
-    """
-    mel_spectrograms = librosa.feature.melspectrogram(y=segments, sr=SAMPLE_RATE)
-    log_mel_spectrograms = np.stack(
-        [librosa.power_to_db(mel_spectrogram) for mel_spectrogram in mel_spectrograms]
-    )
-    mfccs = dct(log_mel_spectrograms, axis=-2, type=2, norm="ortho")[:, :MFCC_COUNT, :]
-    return np.stack([fixed_mfcc_frames(mfcc.T) for mfcc in mfccs])
+def features_for_segments(segments: np.ndarray, feature_type: str) -> np.ndarray:
+    """Extract one of the comparable per-segment spectral representations."""
+    if feature_type == "mfcc":
+        mel = librosa.feature.melspectrogram(y=segments, sr=SAMPLE_RATE)
+        log_mel = np.stack([librosa.power_to_db(item) for item in mel])
+        features = dct(log_mel, axis=-2, type=2, norm="ortho")[:, :MFCC_COUNT, :]
+    elif feature_type == "logmel":
+        mel = librosa.feature.melspectrogram(
+            y=segments, sr=SAMPLE_RATE, n_mels=MEL_COUNT, power=2.0
+        )
+        features = np.stack([librosa.power_to_db(item, ref=np.max) for item in mel])
+    elif feature_type == "pcen":
+        mel = librosa.feature.melspectrogram(
+            y=segments, sr=SAMPLE_RATE, n_mels=MEL_COUNT, power=1.0
+        )
+        features = np.stack(
+            [librosa.pcen(item * (2**31), sr=SAMPLE_RATE) for item in mel]
+        )
+    else:
+        raise ValueError(f"Unsupported feature type: {feature_type}")
+    return np.stack([fixed_feature_frames(feature.T) for feature in features])
 
 
 def extract_mfcc_slices(
-    recordings: list[dict[str, Any]], max_slices_per_recording: int, seed: int
+    recordings: list[dict[str, Any]],
+    max_slices_per_recording: int,
+    seed: int,
+    feature_type: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, Any]]]:
     """Extract capped MFCC slices and retain the source recording index for every sample."""
     features: list[np.ndarray] = []
@@ -270,8 +292,8 @@ def extract_mfcc_slices(
                 for slice_index in slice_indices
             ]
         )
-        for mfcc in mfcc_for_segments(segments):
-            features.append(mfcc)
+        for feature in features_for_segments(segments, feature_type):
+            features.append(feature)
             labels.append(int(recording["label"]))
             recording_indices.append(recording_index)
         retained_records.append(
@@ -339,7 +361,8 @@ def write_dataset(
     manifest = {
         "classes": list(EXPECTED_SPECIES),
         "sample_rate": SAMPLE_RATE,
-        "mfcc_shape": [MFCC_FRAMES, MFCC_COUNT],
+        "feature_type": arguments.feature,
+        "feature_shape": list(train_data.shape[1:]),
         "validation_ratio": arguments.validation_ratio,
         "seed": arguments.seed,
         "max_slices_per_recording": arguments.max_slices_per_recording,
@@ -351,8 +374,10 @@ def write_dataset(
     )
 
 
-def main() -> None:
-    arguments = parse_arguments()
+def main(
+    default_feature: str = "mfcc", default_output_dir: Path | None = None
+) -> None:
+    arguments = parse_arguments(default_feature, default_output_dir)
     if not 0 < arguments.validation_ratio < 1:
         raise ValueError("--validation-ratio must be between zero and one.")
     if arguments.max_slices_per_recording < 1:
@@ -362,10 +387,16 @@ def main() -> None:
         recordings, arguments.validation_ratio, arguments.seed
     )
     train_data, train_labels, train_indices, retained_train = extract_mfcc_slices(
-        train_recordings, arguments.max_slices_per_recording, arguments.seed
+        train_recordings,
+        arguments.max_slices_per_recording,
+        arguments.seed,
+        arguments.feature,
     )
     validation_data, validation_labels, validation_indices, retained_validation = extract_mfcc_slices(
-        validation_recordings, arguments.max_slices_per_recording, arguments.seed
+        validation_recordings,
+        arguments.max_slices_per_recording,
+        arguments.seed,
+        arguments.feature,
     )
     expected_labels = np.arange(len(label_map))
     if not np.array_equal(np.unique(train_labels), expected_labels):

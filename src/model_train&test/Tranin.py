@@ -19,8 +19,10 @@ from construct_model.MobileNetV2 import create_model as create_mobilenetv2
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATASET_DIR = REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_A"
-DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model"
+DEFAULT_DATASET_DIR = (
+    REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_A_8class"
+)
+DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model_8class"
 MODEL_FACTORIES = {
     "BC_ResNet": create_bc_resnet,
     "CNN_Model": create_cnn,
@@ -75,10 +77,12 @@ def validate_data(
     expected_labels = np.arange(len(label_map))
     if sorted(label_map.values()) != expected_labels.tolist():
         raise ValueError("The label map must contain contiguous class IDs.")
-    if train_data.ndim != 3 or train_data.shape[1:] != (32, 13):
+    if train_data.ndim != 3 or train_data.shape[1] != 32:
         raise ValueError(f"Unexpected training feature shape: {train_data.shape}")
-    if validation_data.ndim != 3 or validation_data.shape[1:] != (32, 13):
+    if validation_data.ndim != 3 or validation_data.shape[1] != 32:
         raise ValueError(f"Unexpected validation feature shape: {validation_data.shape}")
+    if train_data.shape[1:] != validation_data.shape[1:]:
+        raise ValueError("Training and validation feature shapes do not match.")
     if not np.array_equal(np.unique(train_labels), expected_labels):
         raise ValueError("Training labels do not match the label map.")
     if not np.array_equal(np.unique(validation_labels), expected_labels):

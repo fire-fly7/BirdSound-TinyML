@@ -23,12 +23,13 @@ import tensorflow as tf
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATASET_DIR = REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_DB3V"
-DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model"
+DEFAULT_DATASET_DIR = (
+    REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_DB3V_8class"
+)
+DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model_8class"
 MODEL_NAMES = ("BC_ResNet", "CNN_Model", "DS_CNN_Model", "MobileNetV2")
 REGIONS = (1, 2, 3)
 SLICES_PER_RECORDING = 8
-EXPECTED_FEATURE_SHAPE = (32, 13)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -37,8 +38,8 @@ def parse_arguments() -> argparse.Namespace:
         "--models",
         nargs="+",
         choices=MODEL_NAMES,
-        default=list(MODEL_NAMES),
-        help="Models to evaluate. Defaults to every trained model.",
+        default=["DS_CNN_Model"],
+        help="Models to evaluate. Defaults to the current eight-class DS-CNN baseline.",
     )
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--dataset-dir", type=Path, default=DEFAULT_DATASET_DIR)
@@ -62,10 +63,15 @@ def class_names(label_map: dict[str, int]) -> list[str]:
     return [name for name, _ in sorted(label_map.items(), key=lambda item: item[1])]
 
 
-def load_region(dataset_dir: Path, region: int, num_classes: int) -> tuple[np.ndarray, np.ndarray]:
+def load_region(
+    dataset_dir: Path,
+    region: int,
+    num_classes: int,
+    expected_feature_shape: tuple[int, int],
+) -> tuple[np.ndarray, np.ndarray]:
     features = np.load(dataset_dir / f"region_{region}_data.npy", mmap_mode="r")
     labels = np.load(dataset_dir / f"region_{region}_label.npy", mmap_mode="r")
-    if features.ndim != 3 or tuple(features.shape[1:]) != EXPECTED_FEATURE_SHAPE:
+    if features.ndim != 3 or tuple(features.shape[1:]) != expected_feature_shape:
         raise ValueError(f"Unexpected DB3V feature shape for region {region}: {features.shape}")
     if len(features) != len(labels):
         raise ValueError(f"Feature/label count mismatch in DB3V region {region}.")
@@ -145,11 +151,13 @@ def recording_probabilities(labels: np.ndarray, probabilities: np.ndarray) -> tu
     return grouped_labels[:, 0], grouped_probabilities.mean(axis=1)
 
 
-def validate_model(model: tf.keras.Model, model_name: str, num_classes: int) -> None:
-    if tuple(model.input_shape[1:]) != (*EXPECTED_FEATURE_SHAPE, 1):
+def validate_model(model: tf.keras.Model, model_name: str, num_classes: int) -> tuple[int, int]:
+    input_shape = tuple(model.input_shape[1:])
+    if len(input_shape) != 3 or input_shape[0] != 32 or input_shape[2] != 1:
         raise ValueError(f"{model_name} has an unexpected input shape: {model.input_shape}")
     if model.output_shape[-1] != num_classes:
         raise ValueError(f"{model_name} has an unexpected output shape: {model.output_shape}")
+    return input_shape[:2]
 
 
 def evaluate_model(
@@ -165,7 +173,7 @@ def evaluate_model(
         raise ValueError(f"{model_name} label map does not match DB3V.")
 
     model = tf.keras.models.load_model(model_path, compile=False)
-    validate_model(model, model_name, len(expected_label_map))
+    expected_feature_shape = validate_model(model, model_name, len(expected_label_map))
     names = class_names(expected_label_map)
     region_results: dict[str, Any] = {}
     all_labels: list[np.ndarray] = []
@@ -174,7 +182,9 @@ def evaluate_model(
 
     print(f"Evaluating {model_name}...", flush=True)
     for region in REGIONS:
-        features, labels = load_region(dataset_dir, region, len(names))
+        features, labels = load_region(
+            dataset_dir, region, len(names), expected_feature_shape
+        )
         probabilities = predict_probabilities(model, features, batch_size)
         slice_result = classification_metrics(labels, probabilities, names)
         clip_labels, clip_probabilities = recording_probabilities(labels, probabilities)

@@ -24,7 +24,6 @@ DEFAULT_DATASET_DIR = (
 )
 DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model_8class"
 MODEL_NAMES = ("BC_ResNet", "CNN_Model", "DS_CNN_Model", "MobileNetV2")
-EXPECTED_FEATURE_SHAPE = (32, 13)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -117,7 +116,7 @@ def main() -> None:
     global_singleton_mask = np.asarray(
         [item["is_globally_singleton"] for item in manifest["clips"]], dtype=bool
     )
-    if features.ndim != 3 or tuple(features.shape[1:]) != EXPECTED_FEATURE_SHAPE:
+    if features.ndim != 3 or features.shape[1] != 32:
         raise ValueError(f"Unexpected feature shape: {features.shape}")
     if len(features) != len(clip_index):
         raise ValueError("Feature and clip-index counts differ.")
@@ -141,7 +140,7 @@ def main() -> None:
         if model_labels != label_map:
             raise ValueError(f"{model_name} label map does not match BirdSet data.")
         model = tf.keras.models.load_model(model_dir / f"{model_name}.h5", compile=False)
-        if tuple(model.input_shape[1:]) != (*EXPECTED_FEATURE_SHAPE, 1):
+        if tuple(model.input_shape[1:]) != (*features.shape[1:], 1):
             raise ValueError(f"Unexpected {model_name} input shape: {model.input_shape}")
         probabilities = model.predict(
             np.expand_dims(features, axis=-1),

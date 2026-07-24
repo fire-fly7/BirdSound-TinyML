@@ -1,8 +1,9 @@
-"""Create independent, region-aware DB3V MFCC evaluation datasets.
+"""Create independent, region-aware DB3V spectral evaluation datasets.
 
 Only species present in the current Xeno-canto label map are retained, allowing
 the DB3V test corpus to remain an independent subset when training uses fewer
-than the original ten species.
+than the original ten species. MFCC, Log-Mel, and PCEN use the same feature
+definitions as the Xeno-canto comparison pipeline.
 """
 
 from __future__ import annotations
@@ -11,46 +12,34 @@ import argparse
 import json
 from pathlib import Path
 
-import librosa
 import numpy as np
-from scipy.fft import dct
+
+from data_sugment_MFCC import (
+    FEATURE_CHOICES,
+    MFCC_COUNT,
+    MFCC_FRAMES,
+    SAMPLE_RATE,
+    features_for_segments,
+)
 
 
 INPUT_DIR = Path("row_dataset") / "DB3V" / "extracted" / "data_wav_8s_2"
-XENO_LABEL_MAP_PATH = Path("dataset_processing") / "output" / "MFCC_dataset_A" / "label_map.json"
-OUTPUT_DIR = Path("dataset_processing") / "output" / "MFCC_dataset_DB3V"
-SAMPLE_RATE = 16_000
+XENO_LABEL_MAP_PATH = (
+    Path("dataset_processing") / "output" / "MFCC_dataset_A_8class" / "label_map.json"
+)
+OUTPUT_DIR = Path("dataset_processing") / "output" / "MFCC_dataset_DB3V_8class"
 SAMPLES_PER_SLICE = SAMPLE_RATE
-MFCC_COUNT = 13
-MFCC_FRAMES = 32
 
 
-def fixed_mfcc(mfcc: np.ndarray) -> np.ndarray:
-    """Return a fixed (32, 13) MFCC frame window."""
-    mfcc = mfcc[:MFCC_FRAMES]
-    if mfcc.shape[0] < MFCC_FRAMES:
-        mfcc = np.pad(mfcc, ((0, MFCC_FRAMES - mfcc.shape[0]), (0, 0)))
-    return mfcc.astype(np.float32)
-
-
-def extract_mfcc_slices(audio: np.ndarray) -> np.ndarray:
-    """Extract MFCCs using the exact one-second protocol used for Xeno-canto.
-
-    Mel spectra are calculated in a batch for efficiency.  The dB conversion
-    remains per slice because librosa's default ``top_db`` clipping is
-    slice-relative in the Xeno-canto processing script.
-    """
+def extract_feature_slices(audio: np.ndarray, feature_type: str) -> np.ndarray:
+    """Extract features using the exact protocol used for Xeno-canto."""
     slices = len(audio) // SAMPLES_PER_SLICE
     if slices == 0:
-        return np.empty((0, MFCC_FRAMES, MFCC_COUNT), dtype=np.float32)
+        width = MFCC_COUNT if feature_type == "mfcc" else 40
+        return np.empty((0, MFCC_FRAMES, width), dtype=np.float32)
 
     segments = audio[: slices * SAMPLES_PER_SLICE].reshape(slices, SAMPLES_PER_SLICE)
-    mel_spectrograms = librosa.feature.melspectrogram(y=segments, sr=SAMPLE_RATE)
-    log_mel_spectrograms = np.stack(
-        [librosa.power_to_db(mel_spectrogram) for mel_spectrogram in mel_spectrograms]
-    )
-    mfccs = dct(log_mel_spectrograms, axis=-2, type=2, norm="ortho")[:, :MFCC_COUNT, :]
-    return np.stack([fixed_mfcc(mfcc.T) for mfcc in mfccs])
+    return features_for_segments(segments, feature_type)
 
 
 def main() -> None:
@@ -58,6 +47,7 @@ def main() -> None:
     parser.add_argument("--region", type=int, choices=(1, 2, 3))
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument("--xeno-label-map", type=Path, default=XENO_LABEL_MAP_PATH)
+    parser.add_argument("--feature", choices=FEATURE_CHOICES, default="mfcc")
     arguments = parser.parse_args()
     output_dir = arguments.output_dir
     label_map: dict[str, int] = json.loads(arguments.xeno_label_map.read_text(encoding="utf-8"))
@@ -82,8 +72,10 @@ def main() -> None:
                 continue
             label = label_map[species_key]
             for audio_path in sorted(species_dir.glob("*.wav")):
+                import librosa
+
                 audio, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
-                clip_features = extract_mfcc_slices(audio)
+                clip_features = extract_feature_slices(audio, arguments.feature)
                 if len(clip_features) == 0:
                     continue
                 region_features.extend(clip_features)
@@ -95,6 +87,7 @@ def main() -> None:
                         "species": species_key,
                         "label": label,
                         "slices": len(clip_features),
+                        "feature_type": arguments.feature,
                     }
                 )
 

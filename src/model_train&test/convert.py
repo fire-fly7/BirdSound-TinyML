@@ -11,9 +11,11 @@ import tensorflow as tf
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model"
+MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "TinyML_model_8class"
 LITERT_MODEL_DIR = REPOSITORY_ROOT / "src" / "model_train&test" / "LiteRT_model"
-DATASET_DIR = REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_A"
+DATASET_DIR = (
+    REPOSITORY_ROOT / "dataset_processing" / "output" / "MFCC_dataset_A_8class"
+)
 
 
 def representative_dataset(data_path: Path):

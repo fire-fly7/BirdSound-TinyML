@@ -1,8 +1,8 @@
-"""Stream BirdSet SSW soundscapes into this project's MFCC evaluation format.
+"""Stream BirdSet SSW soundscapes into a selected spectral feature format.
 
 The source SSW 5-second split is multi-label.  Every retained clip contains at
 least one of the project's eight target species.  Five non-overlapping
-one-second MFCC windows are generated per clip without storing the complete
+one-second spectral windows are generated per clip without storing the complete
 BirdSet archives locally.
 """
 
@@ -17,10 +17,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-import librosa
 import numpy as np
 import pyarrow.parquet as parquet
-from scipy.fft import dct
+
+from data_sugment_MFCC import FEATURE_CHOICES, features_for_segments
 
 
 BASE_URL = "https://huggingface.co/datasets/DBD-research-group/BirdSet/resolve/data/SSW"
@@ -52,7 +52,8 @@ SPECIES_TO_EBIRD = {
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--feature", choices=FEATURE_CHOICES, default="mfcc")
     parser.add_argument(
         "--label-map",
         type=Path,
@@ -148,23 +149,15 @@ def load_metadata(metadata_path: Path, label_map: dict[str, int]) -> tuple[dict[
     return selected, audit
 
 
-def fixed_mfcc(mfcc: np.ndarray) -> np.ndarray:
-    mfcc = mfcc[:MFCC_FRAMES]
-    if mfcc.shape[0] < MFCC_FRAMES:
-        mfcc = np.pad(mfcc, ((0, MFCC_FRAMES - mfcc.shape[0]), (0, 0)))
-    return mfcc.astype(np.float32)
+def audio_to_features(audio_bytes: bytes, feature_type: str) -> np.ndarray:
+    import librosa
 
-
-def audio_to_mfcc(audio_bytes: bytes) -> np.ndarray:
     audio, _ = librosa.load(io.BytesIO(audio_bytes), sr=SAMPLE_RATE, mono=True)
     required = SLICES_PER_CLIP * SAMPLES_PER_SLICE
     if len(audio) < required:
         audio = np.pad(audio, (0, required - len(audio)))
     segments = audio[:required].reshape(SLICES_PER_CLIP, SAMPLES_PER_SLICE)
-    mel = librosa.feature.melspectrogram(y=segments, sr=SAMPLE_RATE)
-    log_mel = np.stack([librosa.power_to_db(item) for item in mel])
-    mfccs = dct(log_mel, axis=-2, type=2, norm="ortho")[:, :MFCC_COUNT, :]
-    return np.stack([fixed_mfcc(mfcc.T) for mfcc in mfccs])
+    return features_for_segments(segments, feature_type)
 
 
 def stream_shard(
@@ -174,6 +167,7 @@ def stream_shard(
     clip_labels: list[np.ndarray],
     clip_indices: list[int],
     manifest: list[dict[str, Any]],
+    feature_type: str,
 ) -> int:
     url = f"{BASE_URL}/{SHARD_TEMPLATE.format(shard=shard)}"
     request = urllib.request.Request(url, headers={"User-Agent": "birdset-tinyml/1.0"})
@@ -191,7 +185,7 @@ def stream_shard(
                 extracted = archive.extractfile(member)
                 if extracted is None:
                     continue
-                clip_features = audio_to_mfcc(extracted.read())
+                clip_features = audio_to_features(extracted.read(), feature_type)
                 clip_index = len(manifest)
                 features.extend(clip_features)
                 clip_labels.append(np.asarray(metadata["labels"], dtype=np.int64))
@@ -213,6 +207,7 @@ def write_output(
     manifest: list[dict[str, Any]],
     audit: dict,
     shards: list[int],
+    feature_type: str,
 ) -> None:
     if not features:
         raise ValueError("No target BirdSet clips were found in the selected shards.")
@@ -231,7 +226,8 @@ def write_output(
         "source": BASE_URL,
         "sample_rate": SAMPLE_RATE,
         "slices_per_clip": SLICES_PER_CLIP,
-        "mfcc_shape": [MFCC_FRAMES, MFCC_COUNT],
+        "feature_type": feature_type,
+        "feature_shape": list(np.asarray(features[0]).shape),
         "shards": shards,
         "audit": audit,
         "retained_clips": len(manifest),
@@ -245,6 +241,11 @@ def write_output(
 
 def main() -> None:
     arguments = parse_arguments()
+    if arguments.output_dir is None:
+        prefix = {"mfcc": "MFCC", "logmel": "LogMel", "pcen": "PCEN"}[arguments.feature]
+        arguments.output_dir = (
+            Path("dataset_processing") / "output" / f"{prefix}_dataset_BirdSet_SSW_8class"
+        )
     label_map = load_label_map(arguments.label_map)
     metadata_path = download(f"{BASE_URL}/{METADATA_NAME}", arguments.raw_dir / METADATA_NAME)
     selected, audit = load_metadata(metadata_path, label_map)
@@ -262,7 +263,13 @@ def main() -> None:
     manifest: list[dict[str, Any]] = []
     for shard in sorted(set(arguments.shards)):
         stream_shard(
-            shard, selected, features, clip_labels, clip_indices, manifest
+            shard,
+            selected,
+            features,
+            clip_labels,
+            clip_indices,
+            manifest,
+            arguments.feature,
         )
     if set(arguments.shards) == set(SHARDS) and len(manifest) != len(selected):
         found = {item["filepath"] for item in manifest}
@@ -280,8 +287,12 @@ def main() -> None:
         manifest,
         audit,
         sorted(set(arguments.shards)),
+        arguments.feature,
     )
-    print(f"BirdSet MFCC data: {len(features)} slices from {len(manifest)} clips.")
+    print(
+        f"BirdSet {arguments.feature} data: {len(features)} slices "
+        f"from {len(manifest)} clips."
+    )
     print(f"Output directory: {arguments.output_dir}")
 
 
