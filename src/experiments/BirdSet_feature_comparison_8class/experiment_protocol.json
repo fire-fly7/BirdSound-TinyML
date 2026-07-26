@@ -1,0 +1,41 @@
+{
+  "experiment": "BirdSet SSW as an alternative baseline training dataset",
+  "status": "Diagnostic only; excluded from formal baseline selection",
+  "dataset_source": {
+    "dataset": "BirdSet SSW test_5s",
+    "birdset": "https://huggingface.co/datasets/DBD-research-group/BirdSet",
+    "ssw_audio": "https://zenodo.org/records/7079380"
+  },
+  "task": "Eight-output multi-label soundscape classification with sigmoid and binary cross-entropy",
+  "split": {
+    "unit": "Original long recording",
+    "train_recordings": 169,
+    "train_clips": 16102,
+    "validation_recordings": 42,
+    "validation_clips": 3576,
+    "supported_validation_classes": 7,
+    "fixed_split_source": "src/dataset_processing/birdset_baseline_validation_recordings.json"
+  },
+  "training": {
+    "model": "DS-CNN",
+    "features": [
+      "MFCC",
+      "LogMel",
+      "PCEN"
+    ],
+    "seed": 42,
+    "maximum_epochs": 30,
+    "early_stopping_patience": 8,
+    "selection_metric": "BirdSet validation clip-level supported-class macro-F1"
+  },
+  "external_test": {
+    "dataset": "Full DB3V",
+    "recordings": 10658,
+    "relationship_to_training": "Independent dataset; no DB3V recording was used for training or model selection"
+  },
+  "limitations": [
+    "BirdSet SSW test_5s is repurposed for development in this diagnostic and therefore cannot simultaneously be treated as an independent BirdSet test.",
+    "Setophaga_ruticilla has only two positive clips from one long recording; that recording remains in training and validation has no positive support for this class.",
+    "BirdSet internal macro-F1 is a seven-supported-class multi-label metric and is not directly comparable with Xeno-canto or DB3V eight-class single-label macro-F1."
+  ]
+}

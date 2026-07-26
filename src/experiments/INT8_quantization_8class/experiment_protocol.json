@@ -1,0 +1,168 @@
+{
+  "experiment": "Strict INT8 evaluation of selected zero-shot and few-shot chains",
+  "created_at_utc": "2026-07-25T23:45:30.628452+00:00",
+  "selection_rule": "Quantize only FP32-selected chains. INT8 held-out results never select features, policies, shots, epochs, thresholds, or calibration sources.",
+  "strict_int8_definition": "TFLITE_BUILTINS_INT8 only, int8 input and output, no floating-point tensors, and no QUANTIZE/DEQUANTIZE graph operators. Int32 bias and accumulators are expected integer-kernel behavior.",
+  "representative_samples": 256,
+  "calibration_rule": {
+    "zero_shot": "Xeno-canto training features only.",
+    "db3v_fewshot": "Equal requested sample allocation between Xeno-canto training features and the matching 5/10/20-shot DB3V support.",
+    "birdset_fewshot": "Equal requested sample allocation between Xeno-canto training features and isolated BirdSet support.",
+    "heldout_used_for_calibration": false
+  },
+  "batch_size": 128,
+  "num_threads": 4,
+  "tensorflow_version": "2.19.0",
+  "chains": [
+    {
+      "chain_id": "zero_shot_mfcc",
+      "family": "zero_shot",
+      "feature": "MFCC",
+      "requested_shots": 0,
+      "policy": "baseline",
+      "model_path": "src\\experiments\\Feature_comparison_8class\\MFCC\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    },
+    {
+      "chain_id": "zero_shot_logmel",
+      "family": "zero_shot",
+      "feature": "LogMel",
+      "requested_shots": 0,
+      "policy": "baseline",
+      "model_path": "src\\experiments\\Feature_comparison_8class\\LogMel\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    },
+    {
+      "chain_id": "zero_shot_pcen",
+      "family": "zero_shot",
+      "feature": "PCEN",
+      "requested_shots": 0,
+      "policy": "baseline",
+      "model_path": "src\\experiments\\Feature_comparison_8class\\PCEN\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    },
+    {
+      "chain_id": "db3v_5shot_mfcc_head",
+      "family": "db3v_fewshot",
+      "feature": "MFCC",
+      "requested_shots": 5,
+      "policy": "head",
+      "model_path": "src\\experiments\\DB3V_fewshot_8class\\MFCC\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_10shot_mfcc_head",
+      "family": "db3v_fewshot",
+      "feature": "MFCC",
+      "requested_shots": 10,
+      "policy": "head",
+      "model_path": "src\\experiments\\DB3V_fewshot_10shot_8class\\MFCC\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_20shot_mfcc_head",
+      "family": "db3v_fewshot",
+      "feature": "MFCC",
+      "requested_shots": 20,
+      "policy": "head",
+      "model_path": "src\\experiments\\DB3V_fewshot_20shot_8class\\MFCC\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_5shot_logmel_head",
+      "family": "db3v_fewshot",
+      "feature": "LogMel",
+      "requested_shots": 5,
+      "policy": "head",
+      "model_path": "src\\experiments\\DB3V_fewshot_8class\\LogMel\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_10shot_logmel_last_block",
+      "family": "db3v_fewshot",
+      "feature": "LogMel",
+      "requested_shots": 10,
+      "policy": "last_block",
+      "model_path": "src\\experiments\\DB3V_fewshot_10shot_8class\\LogMel\\last_block\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_20shot_logmel_all",
+      "family": "db3v_fewshot",
+      "feature": "LogMel",
+      "requested_shots": 20,
+      "policy": "all",
+      "model_path": "src\\experiments\\DB3V_fewshot_20shot_8class\\LogMel\\all\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_5shot_pcen_all",
+      "family": "db3v_fewshot",
+      "feature": "PCEN",
+      "requested_shots": 5,
+      "policy": "all",
+      "model_path": "src\\experiments\\DB3V_fewshot_8class\\PCEN\\all\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_10shot_pcen_head",
+      "family": "db3v_fewshot",
+      "feature": "PCEN",
+      "requested_shots": 10,
+      "policy": "head",
+      "model_path": "src\\experiments\\DB3V_fewshot_10shot_8class\\PCEN\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "db3v_20shot_pcen_last_block",
+      "family": "db3v_fewshot",
+      "feature": "PCEN",
+      "requested_shots": 20,
+      "policy": "last_block",
+      "model_path": "src\\experiments\\DB3V_fewshot_20shot_8class\\PCEN\\last_block\\DS_CNN_Model.h5",
+      "birdset_scope": "full_211_recordings",
+      "db3v_scope": "common_20shot_heldout_10197_recordings"
+    },
+    {
+      "chain_id": "birdset_5shot_mfcc_all",
+      "family": "birdset_fewshot",
+      "feature": "MFCC",
+      "requested_shots": 5,
+      "policy": "all",
+      "model_path": "src\\experiments\\BirdSet_fewshot_8class\\MFCC\\all\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    },
+    {
+      "chain_id": "birdset_5shot_logmel_head",
+      "family": "birdset_fewshot",
+      "feature": "LogMel",
+      "requested_shots": 5,
+      "policy": "head",
+      "model_path": "src\\experiments\\BirdSet_fewshot_8class\\LogMel\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    },
+    {
+      "chain_id": "birdset_5shot_pcen_head",
+      "family": "birdset_fewshot",
+      "feature": "PCEN",
+      "requested_shots": 5,
+      "policy": "head",
+      "model_path": "src\\experiments\\BirdSet_fewshot_8class\\PCEN\\head\\DS_CNN_Model.h5",
+      "birdset_scope": "heldout_201_recordings",
+      "db3v_scope": "full_10658_recordings"
+    }
+  ]
+}

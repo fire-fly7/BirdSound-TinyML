@@ -1,0 +1,37 @@
+{
+  "experiment": "Strict DB3V few-shot fine-tuning ablation with multiple seeds",
+  "created_at_utc": "2026-07-26T18:31:24.744623+00:00",
+  "features": [
+    "MFCC",
+    "LogMel",
+    "PCEN"
+  ],
+  "requested_shots_per_region_class": [
+    5,
+    10,
+    20
+  ],
+  "policies": {
+    "head_only": "Only the final softmax Dense layer is trainable.",
+    "bn_head": "All BatchNormalization layers and the final softmax Dense layer are trainable.",
+    "bn_head_replay": "BN+Head with a class-balanced Xeno-canto training replay buffer at a 1:1 replay-to-DB3V-slice ratio.",
+    "full": "Every layer is trainable, including all BatchNormalization layers."
+  },
+  "seeds": [
+    42,
+    123,
+    2026
+  ],
+  "random_seed_scope": "Fixed external support/held-out recordings; seed changes the internal support train/validation split, replay sampling, batch order, and TensorFlow stochastic operations.",
+  "selection": "Policy/epoch selection uses support validation recording macro-F1 multiplied by capped Xeno-canto validation macro-F1 retention.",
+  "heldout_access_during_training_or_selection": false,
+  "db3v_final_test": "Every run is evaluated after training on the feature-matched common 20-shot held-out set. Held-out metrics are reported but never used by the training script or selected_by_mean_adaptation_score.",
+  "xeno_forgetting_test": "Final Xeno-canto validation macro-F1, absolute change from the base model, and retention ratio are recorded for every run.",
+  "standard_deviation": "Sample standard deviation (statistics.stdev, ddof=1).",
+  "replay_ratio": 1.0,
+  "maximum_epochs": 30,
+  "patience": 6,
+  "batch_size": 32,
+  "runs_expected": 108,
+  "runs_complete": 108
+}
