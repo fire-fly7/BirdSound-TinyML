@@ -1,0 +1,135 @@
+{
+  "experiment": "DB3V 5-shot regional adaptation from Xeno-canto DS-CNN",
+  "created_at_utc": "2026-07-26T17:50:55.338970+00:00",
+  "heldout_access_during_training": false,
+  "base_model": "src\\experiments\\Feature_comparison_8class\\LogMel\\DS_CNN_Model.h5",
+  "support_dir": "src\\dataset_processing\\output\\LogMel_DB3V_external_split_8class",
+  "xeno_validation_dir": "src\\dataset_processing\\output\\LogMel_dataset_A_8class",
+  "label_map": {
+    "Agelaius_phoeniceus": 0,
+    "Cardinalis_cardinalis": 1,
+    "Certhia_americana": 2,
+    "Corvus_brachyrhynchos": 3,
+    "Setophaga_aestiva": 4,
+    "Setophaga_ruticilla": 5,
+    "Spinus_tristis": 6,
+    "Turdus_migratorius": 7
+  },
+  "protocol": {
+    "support_recordings": 120,
+    "support_slices": 960,
+    "shots_per_region_class": 5,
+    "requested_support_recordings": 120,
+    "support_shortfall_recordings": 0,
+    "support_recordings_by_region_class": null,
+    "selection_train_recordings": 96,
+    "selection_validation_recordings": 24,
+    "selection_validation_per_region_class": 1,
+    "seed": 42,
+    "selection_validation_paths": [
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Agelaius phoeniceus\\562737_0.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Cardinalis cardinalis\\718207_10.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Certhia americana\\209341_7.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Corvus brachyrhynchos\\496356_5.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Setophaga aestiva\\188392_1.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Setophaga ruticilla\\794304_5.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Spinus tristis\\103303_9.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\1\\Turdus migratorius\\187409_19.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Agelaius phoeniceus\\659260_5.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Cardinalis cardinalis\\220401_4.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Certhia americana\\121046_1.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Corvus brachyrhynchos\\112829_13.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Setophaga aestiva\\81303_6.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Setophaga ruticilla\\133902_0.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Spinus tristis\\127600_11.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\2\\Turdus migratorius\\711105_25.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Agelaius phoeniceus\\629134_5.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Cardinalis cardinalis\\340724_0.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Certhia americana\\22478_4.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Corvus brachyrhynchos\\456644_3.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Setophaga aestiva\\316039_2.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Setophaga ruticilla\\802220_29.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Spinus tristis\\557331_10.wav",
+      "src/row_dataset\\DB3V\\extracted\\data_wav_8s_2\\3\\Turdus migratorius\\572715_0.wav"
+    ],
+    "policy": "bn_head",
+    "learning_rate": 0.0001,
+    "maximum_selection_epochs": 30,
+    "patience": 6,
+    "selected_epoch": 3,
+    "selection_metric": "support validation recording macro-F1 multiplied by capped Xeno validation macro-F1 retention",
+    "final_training": "Reload the original Xeno model and train on all 120 support recordings for the selected fixed epoch count.",
+    "trainable_layers": [
+      "batch_normalization",
+      "batch_normalization_1",
+      "batch_normalization_2",
+      "dense_1"
+    ],
+    "trainable_parameters": 1480,
+    "total_parameters": 30056,
+    "batch_normalization_trainable": true,
+    "replay": {
+      "enabled": false,
+      "source": null,
+      "source_partition": null,
+      "class_balanced": false,
+      "ratio_to_db3v_support_slices": 0.0,
+      "selection_replay_slices": 0,
+      "final_replay_slices": 0,
+      "selection_sampling_seed": null,
+      "final_sampling_seed": null,
+      "heldout_or_validation_used_for_replay": false
+    }
+  },
+  "baseline_before_selection": {
+    "support_validation": {
+      "recordings": 24,
+      "accuracy": 0.5833333333333334,
+      "balanced_accuracy": 0.5833333333333333,
+      "macro_f1": 0.584848484848485,
+      "top_3_accuracy": 0.9583333333333334
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.6229166666666667,
+      "balanced_accuracy": 0.6229166666666667,
+      "macro_f1": 0.6355871304778794,
+      "top_3_accuracy": 0.86875
+    }
+  },
+  "selected_split_model": {
+    "support_validation": {
+      "recordings": 24,
+      "accuracy": 0.625,
+      "balanced_accuracy": 0.625,
+      "macro_f1": 0.6154761904761905,
+      "top_3_accuracy": 0.9583333333333334
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.6125,
+      "balanced_accuracy": 0.6125,
+      "macro_f1": 0.6148018862483833,
+      "top_3_accuracy": 0.84375
+    },
+    "xeno_macro_f1_retention": 0.9672975690777937,
+    "adaptation_score": 0.5953486228728803
+  },
+  "final_all_support_model": {
+    "support_training": {
+      "recordings": 120,
+      "accuracy": 0.7416666666666667,
+      "balanced_accuracy": 0.7416666666666667,
+      "macro_f1": 0.7409148143523143,
+      "top_3_accuracy": 0.95
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.6145833333333334,
+      "balanced_accuracy": 0.6145833333333334,
+      "macro_f1": 0.6144177636540281,
+      "top_3_accuracy": 0.8479166666666667
+    },
+    "xeno_macro_f1_retention": 0.9666932104054173
+  }
+}

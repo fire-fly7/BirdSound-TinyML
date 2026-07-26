@@ -1,0 +1,1249 @@
+{
+  "dataset": {
+    "name": "DB3V",
+    "purpose": "Regional held-out evaluation. Recordings in this dataset directory are isolated from any DB3V support used for fitting and are not used for training, early stopping, or model selection.",
+    "feature_protocol": "Precomputed non-overlapping one-second feature slices. The feature shape and label map are validated against each model; MFCC, LogMel, and PCEN inputs are produced by the corresponding dataset_processing pipeline.",
+    "slices_per_recording": 8,
+    "label_map": {
+      "Agelaius_phoeniceus": 0,
+      "Cardinalis_cardinalis": 1,
+      "Certhia_americana": 2,
+      "Corvus_brachyrhynchos": 3,
+      "Setophaga_aestiva": 4,
+      "Setophaga_ruticilla": 5,
+      "Spinus_tristis": 6,
+      "Turdus_migratorius": 7
+    }
+  },
+  "created_at_utc": "2026-07-26T18:18:56.165671+00:00",
+  "models": {
+    "DS_CNN_Model": {
+      "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\20shot\\bn_head\\seed_42\\DS_CNN_Model.h5",
+      "input_shape": [
+        null,
+        32,
+        40,
+        1
+      ],
+      "output_shape": [
+        null,
+        8
+      ],
+      "inference_seconds": 10.556376599997748,
+      "regions": {
+        "1": {
+          "recordings": 5091,
+          "slice_level": {
+            "samples": 40728,
+            "accuracy": 0.4395992928697702,
+            "balanced_accuracy": 0.44408386943614475,
+            "macro_precision": 0.45405140543991007,
+            "macro_recall": 0.44408386943614475,
+            "macro_f1": 0.4011326652969331,
+            "weighted_f1": 0.46732325546826725,
+            "top_3_accuracy": 0.7094382243174229,
+            "confusion_matrix": [
+              [
+                5212,
+                357,
+                1190,
+                545,
+                389,
+                1091,
+                691,
+                725
+              ],
+              [
+                960,
+                2374,
+                770,
+                266,
+                159,
+                770,
+                348,
+                417
+              ],
+              [
+                241,
+                62,
+                1255,
+                102,
+                79,
+                626,
+                139,
+                96
+              ],
+              [
+                353,
+                80,
+                1278,
+                2554,
+                42,
+                489,
+                95,
+                109
+              ],
+              [
+                721,
+                190,
+                1263,
+                203,
+                906,
+                1559,
+                638,
+                200
+              ],
+              [
+                74,
+                31,
+                349,
+                32,
+                142,
+                727,
+                45,
+                32
+              ],
+              [
+                302,
+                37,
+                150,
+                56,
+                71,
+                104,
+                783,
+                105
+              ],
+              [
+                1054,
+                250,
+                872,
+                316,
+                123,
+                989,
+                447,
+                4093
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 10200,
+                "precision": 0.5845015139620948,
+                "recall": 0.5109803921568628,
+                "f1": 0.5452738400376628
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 6064,
+                "precision": 0.702159124519373,
+                "recall": 0.39149076517150394,
+                "f1": 0.5026998411858126
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 2600,
+                "precision": 0.17609092184649922,
+                "recall": 0.4826923076923077,
+                "f1": 0.2580446180734039
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 5000,
+                "precision": 0.6269023073146784,
+                "recall": 0.5108,
+                "f1": 0.5629270443024024
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 5680,
+                "precision": 0.4740973312401884,
+                "recall": 0.15950704225352114,
+                "f1": 0.23870372809906465
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 1432,
+                "precision": 0.11439811172305271,
+                "recall": 0.50768156424581,
+                "f1": 0.18672145884165917
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 1608,
+                "precision": 0.2457627118644068,
+                "recall": 0.4869402985074627,
+                "f1": 0.32665832290362956
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 8144,
+                "precision": 0.7084992210489873,
+                "recall": 0.5025785854616895,
+                "f1": 0.5880324689318296
+              }
+            }
+          },
+          "recording_level": {
+            "samples": 5091,
+            "accuracy": 0.7246120604989197,
+            "balanced_accuracy": 0.7224331444884798,
+            "macro_precision": 0.6839902107478399,
+            "macro_recall": 0.7224331444884798,
+            "macro_f1": 0.6557155542807089,
+            "weighted_f1": 0.7286316546904181,
+            "top_3_accuracy": 0.9171086230603025,
+            "confusion_matrix": [
+              [
+                1035,
+                6,
+                44,
+                22,
+                21,
+                51,
+                54,
+                42
+              ],
+              [
+                32,
+                636,
+                4,
+                5,
+                6,
+                43,
+                15,
+                17
+              ],
+              [
+                13,
+                4,
+                222,
+                5,
+                4,
+                58,
+                11,
+                8
+              ],
+              [
+                20,
+                0,
+                23,
+                544,
+                1,
+                26,
+                5,
+                6
+              ],
+              [
+                70,
+                7,
+                98,
+                6,
+                151,
+                266,
+                94,
+                18
+              ],
+              [
+                7,
+                0,
+                9,
+                3,
+                10,
+                149,
+                1,
+                0
+              ],
+              [
+                33,
+                0,
+                2,
+                5,
+                7,
+                2,
+                149,
+                3
+              ],
+              [
+                92,
+                5,
+                30,
+                20,
+                2,
+                49,
+                17,
+                803
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 1275,
+                "precision": 0.7949308755760369,
+                "recall": 0.8117647058823529,
+                "f1": 0.8032596041909197
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 758,
+                "precision": 0.9665653495440729,
+                "recall": 0.8390501319261213,
+                "f1": 0.8983050847457626
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 325,
+                "precision": 0.5138888888888888,
+                "recall": 0.683076923076923,
+                "f1": 0.5865257595772787
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 625,
+                "precision": 0.8918032786885246,
+                "recall": 0.8704,
+                "f1": 0.8809716599190283
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 710,
+                "precision": 0.7475247524752475,
+                "recall": 0.21267605633802816,
+                "f1": 0.331140350877193
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 179,
+                "precision": 0.23136645962732919,
+                "recall": 0.8324022346368715,
+                "f1": 0.362089914945322
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 201,
+                "precision": 0.430635838150289,
+                "recall": 0.7412935323383084,
+                "f1": 0.5447897623400366
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 1018,
+                "precision": 0.89520624303233,
+                "recall": 0.7888015717092338,
+                "f1": 0.8386422976501305
+              }
+            }
+          }
+        },
+        "2": {
+          "recordings": 611,
+          "slice_level": {
+            "samples": 4888,
+            "accuracy": 0.5562602291325696,
+            "balanced_accuracy": 0.4174565915214262,
+            "macro_precision": 0.48947483430600974,
+            "macro_recall": 0.4174565915214262,
+            "macro_f1": 0.43621092561509567,
+            "weighted_f1": 0.6180716459560217,
+            "top_3_accuracy": 0.7673895253682488,
+            "confusion_matrix": [
+              [
+                119,
+                10,
+                49,
+                7,
+                6,
+                36,
+                14,
+                31
+              ],
+              [
+                88,
+                469,
+                240,
+                76,
+                11,
+                177,
+                34,
+                73
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                53,
+                4,
+                121,
+                598,
+                2,
+                23,
+                16,
+                7
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                40,
+                21,
+                203,
+                13,
+                45,
+                328,
+                26,
+                20
+              ],
+              [
+                48,
+                5,
+                41,
+                12,
+                5,
+                21,
+                427,
+                33
+              ],
+              [
+                189,
+                46,
+                130,
+                42,
+                13,
+                54,
+                84,
+                778
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 272,
+                "precision": 0.22160148975791433,
+                "recall": 0.4375,
+                "f1": 0.29419035846724345
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 1168,
+                "precision": 0.8450450450450451,
+                "recall": 0.401541095890411,
+                "f1": 0.5443993035403367
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 824,
+                "precision": 0.7994652406417112,
+                "recall": 0.7257281553398058,
+                "f1": 0.7608142493638677
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 696,
+                "precision": 0.513302034428795,
+                "recall": 0.47126436781609193,
+                "f1": 0.49138576779026216
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 592,
+                "precision": 0.7104825291181365,
+                "recall": 0.7212837837837838,
+                "f1": 0.7158424140821459
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 1336,
+                "precision": 0.8259023354564756,
+                "recall": 0.5823353293413174,
+                "f1": 0.6830553116769096
+              }
+            }
+          },
+          "recording_level": {
+            "samples": 611,
+            "accuracy": 0.855973813420622,
+            "balanced_accuracy": 0.6399812151392199,
+            "macro_precision": 0.628062533219002,
+            "macro_recall": 0.6399812151392199,
+            "macro_f1": 0.6289013403483119,
+            "weighted_f1": 0.8724318664191958,
+            "top_3_accuracy": 0.967266775777414,
+            "confusion_matrix": [
+              [
+                24,
+                0,
+                5,
+                0,
+                1,
+                0,
+                0,
+                4
+              ],
+              [
+                5,
+                117,
+                1,
+                4,
+                0,
+                19,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                3,
+                0,
+                0,
+                99,
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                2,
+                5,
+                0,
+                4,
+                74,
+                2,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                73,
+                1
+              ],
+              [
+                19,
+                2,
+                1,
+                3,
+                0,
+                1,
+                5,
+                136
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 34,
+                "precision": 0.47058823529411764,
+                "recall": 0.7058823529411765,
+                "f1": 0.5647058823529412
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 146,
+                "precision": 0.9669421487603306,
+                "recall": 0.8013698630136986,
+                "f1": 0.8764044943820225
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 103,
+                "precision": 0.9339622641509434,
+                "recall": 0.9611650485436893,
+                "f1": 0.9473684210526316
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 87,
+                "precision": 0.7872340425531915,
+                "recall": 0.8505747126436781,
+                "f1": 0.8176795580110497
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 74,
+                "precision": 0.9012345679012346,
+                "recall": 0.9864864864864865,
+                "f1": 0.9419354838709678
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 167,
+                "precision": 0.9645390070921985,
+                "recall": 0.8143712574850299,
+                "f1": 0.8831168831168831
+              }
+            }
+          }
+        },
+        "3": {
+          "recordings": 4495,
+          "slice_level": {
+            "samples": 35960,
+            "accuracy": 0.4292269187986652,
+            "balanced_accuracy": 0.43002284532820845,
+            "macro_precision": 0.4357723044271552,
+            "macro_recall": 0.43002284532820845,
+            "macro_f1": 0.3952088342751406,
+            "weighted_f1": 0.4630894952813765,
+            "top_3_accuracy": 0.6758342602892102,
+            "confusion_matrix": [
+              [
+                2949,
+                290,
+                1023,
+                482,
+                192,
+                893,
+                382,
+                341
+              ],
+              [
+                765,
+                4167,
+                1812,
+                546,
+                153,
+                1756,
+                336,
+                697
+              ],
+              [
+                85,
+                8,
+                483,
+                26,
+                15,
+                234,
+                34,
+                11
+              ],
+              [
+                291,
+                140,
+                747,
+                1718,
+                13,
+                314,
+                30,
+                67
+              ],
+              [
+                389,
+                98,
+                335,
+                61,
+                341,
+                632,
+                275,
+                85
+              ],
+              [
+                371,
+                152,
+                1145,
+                184,
+                292,
+                2000,
+                170,
+                158
+              ],
+              [
+                229,
+                97,
+                235,
+                69,
+                107,
+                307,
+                999,
+                61
+              ],
+              [
+                505,
+                375,
+                684,
+                298,
+                105,
+                943,
+                480,
+                2778
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 6552,
+                "precision": 0.5281160458452722,
+                "recall": 0.4500915750915751,
+                "f1": 0.4859920896506262
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 10232,
+                "precision": 0.7822414116763657,
+                "recall": 0.40725175918686474,
+                "f1": 0.5356385371810528
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 896,
+                "precision": 0.07472153465346534,
+                "recall": 0.5390625,
+                "f1": 0.13125
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 3320,
+                "precision": 0.5076832151300237,
+                "recall": 0.5174698795180723,
+                "f1": 0.5125298329355609
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 2216,
+                "precision": 0.2799671592775041,
+                "recall": 0.15388086642599277,
+                "f1": 0.1986022131624927
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 4472,
+                "precision": 0.28252578047746857,
+                "recall": 0.4472271914132379,
+                "f1": 0.3462903644706085
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 2104,
+                "precision": 0.369179600886918,
+                "recall": 0.47480988593155893,
+                "f1": 0.4153846153846154
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 6168,
+                "precision": 0.6617436874702239,
+                "recall": 0.45038910505836577,
+                "f1": 0.5359830214161682
+              }
+            }
+          },
+          "recording_level": {
+            "samples": 4495,
+            "accuracy": 0.7410456062291435,
+            "balanced_accuracy": 0.7044174728479341,
+            "macro_precision": 0.6745753453814087,
+            "macro_recall": 0.7044174728479341,
+            "macro_f1": 0.6659952310627941,
+            "weighted_f1": 0.7460982980167133,
+            "top_3_accuracy": 0.9023359288097886,
+            "confusion_matrix": [
+              [
+                604,
+                16,
+                46,
+                27,
+                12,
+                49,
+                42,
+                23
+              ],
+              [
+                24,
+                1017,
+                29,
+                12,
+                12,
+                140,
+                9,
+                36
+              ],
+              [
+                12,
+                0,
+                72,
+                0,
+                2,
+                22,
+                2,
+                2
+              ],
+              [
+                14,
+                9,
+                4,
+                377,
+                0,
+                8,
+                2,
+                1
+              ],
+              [
+                39,
+                10,
+                11,
+                0,
+                66,
+                104,
+                42,
+                5
+              ],
+              [
+                19,
+                10,
+                61,
+                5,
+                21,
+                426,
+                8,
+                9
+              ],
+              [
+                17,
+                4,
+                1,
+                1,
+                7,
+                10,
+                221,
+                2
+              ],
+              [
+                27,
+                31,
+                19,
+                23,
+                0,
+                75,
+                48,
+                548
+              ]
+            ],
+            "per_class": {
+              "Agelaius_phoeniceus": {
+                "label": 0,
+                "support": 819,
+                "precision": 0.798941798941799,
+                "recall": 0.7374847374847375,
+                "f1": 0.7669841269841269
+              },
+              "Cardinalis_cardinalis": {
+                "label": 1,
+                "support": 1279,
+                "precision": 0.927073837739289,
+                "recall": 0.7951524628616107,
+                "f1": 0.8560606060606061
+              },
+              "Certhia_americana": {
+                "label": 2,
+                "support": 112,
+                "precision": 0.2962962962962963,
+                "recall": 0.6428571428571429,
+                "f1": 0.4056338028169014
+              },
+              "Corvus_brachyrhynchos": {
+                "label": 3,
+                "support": 415,
+                "precision": 0.8471910112359551,
+                "recall": 0.908433734939759,
+                "f1": 0.8767441860465116
+              },
+              "Setophaga_aestiva": {
+                "label": 4,
+                "support": 277,
+                "precision": 0.55,
+                "recall": 0.23826714801444043,
+                "f1": 0.33249370277078083
+              },
+              "Setophaga_ruticilla": {
+                "label": 5,
+                "support": 559,
+                "precision": 0.5107913669064749,
+                "recall": 0.7620751341681574,
+                "f1": 0.6116295764536971
+              },
+              "Spinus_tristis": {
+                "label": 6,
+                "support": 263,
+                "precision": 0.5909090909090909,
+                "recall": 0.8403041825095057,
+                "f1": 0.6938775510204082
+              },
+              "Turdus_migratorius": {
+                "label": 7,
+                "support": 771,
+                "precision": 0.8753993610223643,
+                "recall": 0.7107652399481194,
+                "f1": 0.78453829634932
+              }
+            }
+          }
+        }
+      },
+      "pooled": {
+        "recordings": 10197,
+        "slice_level": {
+          "samples": 81576,
+          "accuracy": 0.442017259978425,
+          "balanced_accuracy": 0.44254567675340517,
+          "macro_precision": 0.4585062164404492,
+          "macro_recall": 0.44254567675340517,
+          "macro_f1": 0.4127633400646571,
+          "weighted_f1": 0.4690491285141138,
+          "top_3_accuracy": 0.6980974796508778,
+          "confusion_matrix": [
+            [
+              8280,
+              657,
+              2262,
+              1034,
+              587,
+              2020,
+              1087,
+              1097
+            ],
+            [
+              1813,
+              7010,
+              2822,
+              888,
+              323,
+              2703,
+              718,
+              1187
+            ],
+            [
+              326,
+              70,
+              1738,
+              128,
+              94,
+              860,
+              173,
+              107
+            ],
+            [
+              697,
+              224,
+              2146,
+              4870,
+              57,
+              826,
+              141,
+              183
+            ],
+            [
+              1110,
+              288,
+              1598,
+              264,
+              1247,
+              2191,
+              913,
+              285
+            ],
+            [
+              485,
+              204,
+              1697,
+              229,
+              479,
+              3055,
+              241,
+              210
+            ],
+            [
+              579,
+              139,
+              426,
+              137,
+              183,
+              432,
+              2209,
+              199
+            ],
+            [
+              1748,
+              671,
+              1686,
+              656,
+              241,
+              1986,
+              1011,
+              7649
+            ]
+          ],
+          "per_class": {
+            "Agelaius_phoeniceus": {
+              "label": 0,
+              "support": 17024,
+              "precision": 0.5506051336613912,
+              "recall": 0.48637218045112784,
+              "f1": 0.5164992826398853
+            },
+            "Cardinalis_cardinalis": {
+              "label": 1,
+              "support": 17464,
+              "precision": 0.7567742631976682,
+              "recall": 0.40139715987173613,
+              "f1": 0.5245631758147192
+            },
+            "Certhia_americana": {
+              "label": 2,
+              "support": 3496,
+              "precision": 0.12090434782608696,
+              "recall": 0.4971395881006865,
+              "f1": 0.19450506407028148
+            },
+            "Corvus_brachyrhynchos": {
+              "label": 3,
+              "support": 9144,
+              "precision": 0.593468194004387,
+              "recall": 0.5325896762904637,
+              "f1": 0.5613832853025936
+            },
+            "Setophaga_aestiva": {
+              "label": 4,
+              "support": 7896,
+              "precision": 0.388352538150109,
+              "recall": 0.15792806484295846,
+              "f1": 0.2245430809399478
+            },
+            "Setophaga_ruticilla": {
+              "label": 5,
+              "support": 6600,
+              "precision": 0.2170823562850849,
+              "recall": 0.4628787878787879,
+              "f1": 0.2955545881100953
+            },
+            "Spinus_tristis": {
+              "label": 6,
+              "support": 4304,
+              "precision": 0.34021253657785305,
+              "recall": 0.5132434944237918,
+              "f1": 0.4091877373344448
+            },
+            "Turdus_migratorius": {
+              "label": 7,
+              "support": 15648,
+              "precision": 0.7006503618210131,
+              "recall": 0.48881646216768915,
+              "f1": 0.5758705063052889
+            }
+          }
+        },
+        "recording_level": {
+          "samples": 10197,
+          "accuracy": 0.7397273707953319,
+          "balanced_accuracy": 0.718452868662333,
+          "macro_precision": 0.6952087073523943,
+          "macro_recall": 0.718452868662333,
+          "macro_f1": 0.6775884893880607,
+          "weighted_f1": 0.7404771343006792,
+          "top_3_accuracy": 0.913602039815632,
+          "confusion_matrix": [
+            [
+              1663,
+              22,
+              95,
+              49,
+              34,
+              100,
+              96,
+              69
+            ],
+            [
+              61,
+              1770,
+              34,
+              21,
+              18,
+              202,
+              24,
+              53
+            ],
+            [
+              25,
+              4,
+              294,
+              5,
+              6,
+              80,
+              13,
+              10
+            ],
+            [
+              37,
+              9,
+              27,
+              1020,
+              1,
+              34,
+              8,
+              7
+            ],
+            [
+              109,
+              17,
+              109,
+              6,
+              217,
+              370,
+              136,
+              23
+            ],
+            [
+              26,
+              12,
+              75,
+              8,
+              35,
+              649,
+              11,
+              9
+            ],
+            [
+              50,
+              4,
+              3,
+              6,
+              14,
+              12,
+              443,
+              6
+            ],
+            [
+              138,
+              38,
+              50,
+              46,
+              2,
+              125,
+              70,
+              1487
+            ]
+          ],
+          "per_class": {
+            "Agelaius_phoeniceus": {
+              "label": 0,
+              "support": 2128,
+              "precision": 0.7885253674727359,
+              "recall": 0.7814849624060151,
+              "f1": 0.7849893792777909
+            },
+            "Cardinalis_cardinalis": {
+              "label": 1,
+              "support": 2183,
+              "precision": 0.9434968017057569,
+              "recall": 0.8108108108108109,
+              "f1": 0.8721359940872137
+            },
+            "Certhia_americana": {
+              "label": 2,
+              "support": 437,
+              "precision": 0.4279475982532751,
+              "recall": 0.6727688787185355,
+              "f1": 0.5231316725978647
+            },
+            "Corvus_brachyrhynchos": {
+              "label": 3,
+              "support": 1143,
+              "precision": 0.8785529715762274,
+              "recall": 0.8923884514435696,
+              "f1": 0.8854166666666665
+            },
+            "Setophaga_aestiva": {
+              "label": 4,
+              "support": 987,
+              "precision": 0.6636085626911316,
+              "recall": 0.2198581560283688,
+              "f1": 0.3302891933028919
+            },
+            "Setophaga_ruticilla": {
+              "label": 5,
+              "support": 825,
+              "precision": 0.4128498727735369,
+              "recall": 0.7866666666666666,
+              "f1": 0.5415102211097205
+            },
+            "Spinus_tristis": {
+              "label": 6,
+              "support": 538,
+              "precision": 0.5530586766541823,
+              "recall": 0.8234200743494424,
+              "f1": 0.6616878267363705
+            },
+            "Turdus_migratorius": {
+              "label": 7,
+              "support": 1956,
+              "precision": 0.8936298076923077,
+              "recall": 0.7602249488752556,
+              "f1": 0.8215469613259669
+            }
+          }
+        }
+      }
+    }
+  }
+}

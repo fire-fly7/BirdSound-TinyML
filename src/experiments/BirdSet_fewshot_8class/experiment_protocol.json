@@ -1,0 +1,143 @@
+{
+  "experiment": "BirdSet SSW grouped five-shot multi-label adaptation from Xeno-canto DS-CNN",
+  "executed_date": "2026-07-26",
+  "seed": 42,
+  "official_sources": {
+    "birdset_dataset": "https://huggingface.co/datasets/DBD-research-group/BirdSet",
+    "birdset_code": "https://github.com/DBD-research-group/BirdSet",
+    "birdset_paper": "https://proceedings.iclr.cc/paper_files/paper/2025/hash/484d254ff80e99d543159440a06db0de-Abstract-Conference.html",
+    "ssw_audio": "https://zenodo.org/records/7079380"
+  },
+  "data_roles": {
+    "base_training": "Xeno-canto only",
+    "adaptation": "BirdSet SSW support only",
+    "target_test": "BirdSet SSW held-out test",
+    "retention_test": "Xeno-canto validation",
+    "other_domain_test": "Full DB3V"
+  },
+  "features": [
+    "MFCC",
+    "LogMel",
+    "PCEN"
+  ],
+  "split": {
+    "unit": "original long recording",
+    "requested_positive_clips_per_class": 5,
+    "support_original_recordings": 10,
+    "support_clips": 684,
+    "support_slices": 3420,
+    "support_positive_clips_by_class": [
+      193,
+      92,
+      21,
+      179,
+      10,
+      2,
+      252,
+      37
+    ],
+    "heldout_original_recordings": 201,
+    "heldout_clips": 18994,
+    "heldout_slices": 94970,
+    "heldout_positive_clips_by_class": [
+      6287,
+      3689,
+      175,
+      3682,
+      343,
+      0,
+      2778,
+      3152
+    ],
+    "support_heldout_recording_overlap": 0,
+    "feature_split_identities_equal": true,
+    "note": "Grouped support exceeds five clips for most classes because long recordings remain intact. Setophaga_ruticilla has only two target clips in one support recording."
+  },
+  "selection_split": {
+    "training_original_recordings": 7,
+    "training_clips": 554,
+    "training_positive_clips_by_class": [
+      192,
+      16,
+      21,
+      157,
+      2,
+      2,
+      229,
+      33
+    ],
+    "validation_original_recordings": 3,
+    "validation_clips": 130,
+    "validation_positive_clips_by_class": [
+      1,
+      76,
+      0,
+      22,
+      8,
+      0,
+      23,
+      4
+    ],
+    "validation_recordings": [
+      "SSW_057_20170325_100012Z",
+      "SSW_180_20170603_220017Z",
+      "SSW_285_20170826_220029Z"
+    ],
+    "validation_supported_class_ids": [
+      0,
+      1,
+      3,
+      4,
+      6,
+      7
+    ],
+    "selection_metric": "BirdSet support validation clip top-1 any-target accuracy multiplied by capped Xeno validation macro-F1 retention"
+  },
+  "training": {
+    "task": "eight-class multi-label soundscape adaptation",
+    "output_activation": "sigmoid",
+    "loss": "binary_crossentropy",
+    "optimizer": "Adam",
+    "batch_size": 32,
+    "maximum_selection_epochs": 30,
+    "early_stopping_patience": 6,
+    "batch_normalization": "frozen for all policies",
+    "class_balancing": "Per-clip inverse positive-class-frequency weights divided across the five slices of each clip.",
+    "policies": {
+      "head": {
+        "learning_rate": 0.0003
+      },
+      "last_block": {
+        "learning_rate": 0.0001
+      },
+      "all": {
+        "learning_rate": 0.00003
+      }
+    },
+    "final_training": "Reload original Xeno-canto weights and train on all ten support recordings for the selected fixed epoch count."
+  },
+  "selected_policies": {
+    "MFCC": {
+      "policy": "all",
+      "epochs": 13
+    },
+    "LogMel": {
+      "policy": "head",
+      "epochs": 1
+    },
+    "PCEN": {
+      "policy": "head",
+      "epochs": 3
+    }
+  },
+  "leakage_control": {
+    "heldout_access_during_training": false,
+    "fine_tune_script_accepts_heldout_argument": false,
+    "heldout_evaluation_started_after_all_candidate_selection": true
+  },
+  "artifacts": {
+    "selection_summary": "src/experiments/BirdSet_fewshot_8class/selection_summary.csv",
+    "comparison_summary": "src/experiments/BirdSet_fewshot_8class/comparison_summary.csv",
+    "candidate_reports": "src/experiments/BirdSet_fewshot_8class/{feature}/{policy}/DS_CNN_Model.birdset_fewshot.json"
+  }
+}
