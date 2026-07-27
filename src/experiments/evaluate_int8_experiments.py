@@ -42,7 +42,6 @@ from int8_inference import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENTS_DIR = REPOSITORY_ROOT / "src" / "experiments"
 DATA_DIR = REPOSITORY_ROOT / "src" / "dataset_processing" / "output"
-OUTPUT_DIR = EXPERIMENTS_DIR / "INT8_quantization_8class"
 FEATURES = ("MFCC", "LogMel", "PCEN")
 MODEL_NAME = "DS_CNN_Model"
 
@@ -80,12 +79,13 @@ def parse_arguments() -> argparse.Namespace:
             "zero_shot",
             "db3v_fewshot",
             "birdset_fewshot",
+            "db3v_strict_fewshot",
             "birdset_strict_fewshot",
         ),
-        default=("zero_shot", "db3v_fewshot", "birdset_fewshot"),
+        required=True,
     )
     parser.add_argument("--chains", nargs="+", help="Optional exact chain IDs.")
-    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--representative-samples", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--num-threads", type=int, default=4)
@@ -295,6 +295,72 @@ def build_chains() -> list[Chain]:
                     xeno_fp32_kind="birdset_fewshot",
                 )
             )
+
+    db3v_strict_root = (
+        EXPERIMENTS_DIR / "DB3V_fewshot_ablation_multiseed_8class"
+    )
+    db3v_strict_aggregate = db3v_strict_root / "aggregate.csv"
+    db3v_strict_runs = db3v_strict_root / "runs.csv"
+    if db3v_strict_aggregate.exists() and db3v_strict_runs.exists():
+        selected_policies = {
+            (row["feature"], int(row["requested_shots"])): row["policy"]
+            for row in read_csv(db3v_strict_aggregate)
+            if row["selected_by_mean_adaptation_score"].lower() == "true"
+        }
+        for row in read_csv(db3v_strict_runs):
+            feature = row["feature"]
+            shots = int(row["requested_shots"])
+            policy = row["policy"]
+            seed = int(row["seed"])
+            if selected_policies.get((feature, shots)) != policy:
+                continue
+            model_dir = (
+                db3v_strict_root
+                / feature
+                / f"{shots}shot"
+                / policy
+                / f"seed_{seed}"
+            )
+            chains.append(
+                Chain(
+                    chain_id=(
+                        f"db3v_strict_{shots}shot_{feature.lower()}_"
+                        f"{policy}_seed_{seed}"
+                    ),
+                    family="db3v_strict_fewshot",
+                    feature=feature,
+                    requested_shots=shots,
+                    policy=policy,
+                    seed=seed,
+                    model_dir=model_dir,
+                    representative_sources=(
+                        DATA_DIR
+                        / f"{feature}_dataset_A_8class"
+                        / "train_data.npy",
+                        db3v_support_dir(feature, shots) / "support_data.npy",
+                    ),
+                    birdset_scope="full_211_recordings",
+                    birdset_dataset_dir=(
+                        DATA_DIR / f"{feature}_dataset_BirdSet_SSW_8class"
+                    ),
+                    birdset_fp32_report=(
+                        model_dir / "BirdSet_SSW_full_evaluation.json"
+                    ),
+                    db3v_scope="common_20shot_heldout_10197_recordings",
+                    db3v_dataset_dir=(
+                        DATA_DIR
+                        / f"{feature}_DB3V_external_split_20shot_8class"
+                    ),
+                    db3v_fp32_report=(
+                        model_dir
+                        / "DB3V_common_20shot_heldout_evaluation.json"
+                    ),
+                    xeno_fp32_report=(
+                        model_dir / f"{MODEL_NAME}.fewshot.json"
+                    ),
+                    xeno_fp32_kind="fewshot",
+                )
+            )
     return chains
 
 
@@ -376,6 +442,89 @@ def evaluate_birdset(
             global_singleton,
         ),
     }
+
+
+def ensure_fp32_birdset_report(
+    chain: Chain,
+    names: list[str],
+    batch_size: int,
+) -> None:
+    """Create the missing strict-DB3V cross-domain FP32 reference once."""
+    if chain.birdset_fp32_report.exists():
+        return
+    if chain.family != "db3v_strict_fewshot":
+        raise FileNotFoundError(chain.birdset_fp32_report)
+
+    dataset_dir = chain.birdset_dataset_dir
+    features = np.load(dataset_dir / "test_data.npy", mmap_mode="r")
+    clip_index = np.load(dataset_dir / "test_clip_index.npy").astype(np.int64)
+    clip_labels = np.load(dataset_dir / "test_clip_multilabel.npy")
+    manifest = load_json(dataset_dir / "manifest.json")
+    global_singleton = np.asarray(
+        [item["is_globally_singleton"] for item in manifest["clips"]], dtype=bool
+    )
+    if len(features) != len(clip_index):
+        raise ValueError("BirdSet feature and clip-index counts differ.")
+    if clip_labels.shape[1] != len(names):
+        raise ValueError("BirdSet multi-label width does not match the model.")
+
+    model = tf.keras.models.load_model(chain.model_path, compile=False)
+    expected_shape = (*features.shape[1:], 1)
+    if tuple(model.input_shape[1:]) != expected_shape:
+        raise ValueError(
+            f"Unexpected {chain.chain_id} input shape: {model.input_shape}"
+        )
+    probabilities = model.predict(
+        np.expand_dims(features, axis=-1),
+        batch_size=batch_size,
+        verbose=0,
+    )
+    clip_probabilities = np.zeros(
+        (len(clip_labels), len(names)), dtype=np.float64
+    )
+    clip_counts = np.bincount(clip_index, minlength=len(clip_labels))
+    if np.any(clip_counts == 0):
+        raise ValueError("BirdSet clip indices are incomplete.")
+    np.add.at(clip_probabilities, clip_index, probabilities)
+    clip_probabilities /= clip_counts[:, np.newaxis]
+    metrics = {
+        "slice_level": multilabel_metrics(
+            clip_labels[clip_index], probabilities, names
+        ),
+        "clip_level": multilabel_metrics(
+            clip_labels, clip_probabilities, names
+        ),
+        "globally_singleton_clip_level": singleton_metrics(
+            clip_labels,
+            clip_probabilities,
+            names,
+            global_singleton,
+        ),
+    }
+    report = {
+        "dataset": "BirdSet SSW test_5s",
+        "purpose": (
+            "Independent cross-domain evaluation of a strict multi-seed "
+            "DB3V support adaptation model."
+        ),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "dataset_dir": relative(dataset_dir),
+        "model_path": relative(chain.model_path),
+        "label_map": load_label_map(
+            chain.model_dir / f"{MODEL_NAME}.labels.json"
+        ),
+        "models": {MODEL_NAME: metrics},
+    }
+    chain.birdset_fp32_report.parent.mkdir(parents=True, exist_ok=True)
+    chain.birdset_fp32_report.write_text(
+        json.dumps(report, indent=2), encoding="utf-8"
+    )
+    tf.keras.backend.clear_session()
+    print(
+        f"  {chain.chain_id}: saved missing FP32 BirdSet reference "
+        f"{chain.birdset_fp32_report}",
+        flush=True,
+    )
 
 
 def add_inference_stats(items: list[dict[str, Any]]) -> dict[str, Any]:
@@ -614,15 +763,22 @@ def write_multiseed_aggregate(
     path: Path,
     rows: list[dict[str, Any]],
 ) -> None:
+    strict_families = {
+        "birdset_strict_fewshot",
+        "db3v_strict_fewshot",
+    }
     strict_rows = [
-        row for row in rows if row["family"] == "birdset_strict_fewshot"
+        row for row in rows if row["family"] in strict_families
     ]
     if not strict_rows:
         return
-    groups: dict[tuple[str, int, str], list[dict[str, Any]]] = defaultdict(list)
+    groups: dict[tuple[str, str, int, str], list[dict[str, Any]]] = (
+        defaultdict(list)
+    )
     for row in strict_rows:
         groups[
             (
+                str(row["family"]),
                 str(row["feature"]),
                 int(row["requested_shots"]),
                 str(row["policy"]),
@@ -658,8 +814,9 @@ def write_multiseed_aggregate(
         "db3v_top3_delta",
     )
     aggregate_rows: list[dict[str, Any]] = []
-    for (feature, shots, policy), group in sorted(groups.items()):
+    for (family, feature, shots, policy), group in sorted(groups.items()):
         aggregate: dict[str, Any] = {
+            "family": family,
             "feature": feature,
             "requested_shots": shots,
             "policy": policy,
@@ -732,6 +889,7 @@ def evaluate_chain(
         if load_label_map(dataset_dir / "label_map.json") != label_map:
             raise ValueError(f"Label map mismatch for {dataset_dir}.")
 
+    ensure_fp32_birdset_report(chain, names, batch_size)
     print(f"  {chain.chain_id}: Xeno validation", flush=True)
     xeno_result = evaluate_xeno(
         predictor,
@@ -880,6 +1038,10 @@ def main() -> None:
             "birdset_strict_fewshot": (
                 "Equal requested sample allocation between Xeno-canto training "
                 "features and the matching grouped 5/10/20-shot BirdSet support."
+            ),
+            "db3v_strict_fewshot": (
+                "Equal requested sample allocation between Xeno-canto training "
+                "features and the matching 5/10/20-shot DB3V support."
             ),
             "heldout_used_for_calibration": False,
         },

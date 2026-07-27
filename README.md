@@ -66,7 +66,8 @@
         ├── BirdSet_fewshot_ablation_multiseed_8class/ # BirdSet严格108组实验
         ├── BirdSet_strict_INT8_quantization_8class/ # BirdSet严格链路INT8复测
         ├── DB3V_fewshot_ablation_multiseed_8class/ # 108组严格策略实验与统计
-        ├── INT8_quantization_8class/         # 15条链路的INT8模型与精度报告
+        ├── DB3V_strict_INT8_quantization_8class/ # DB3V严格链路INT8与BirdSet复测
+        ├── INT8_quantization_8class/         # 零样本及旧单种子INT8历史归档
         ├── BirdSet_baseline_8class/         # BirdSet MFCC诊断结果
         ├── BirdSet_feature_comparison_8class/
         └── DB3V_baseline_diagnostic_8class/
@@ -166,15 +167,15 @@ BirdSet论文引用：
 13. 在共同的10,197条DB3V held-out录音上统一复测零样本与5/10/20-shot模型，
     并同步复测Xeno-canto内部验证和完整BirdSet SSW，完成目标域增益、基准保留率
     与跨数据集代价对比。
-14. 原27组单种子历史实验的综合链路为
+14. 原27组单种子实验及其选中链路保留为历史归档，不再参与当前模型推荐；其原综合链路为
     `Xeno-canto → LogMel → DS-CNN → DB3V 20-shot all微调（BatchNorm冻结）`；
     若只优化DB3V地区性能，则PCEN 20-shot `last_block`取得最高Macro-F1 70.60%。
-15. 对 MFCC、LogMel、PCEN 三条 Xeno-canto DS-CNN 链路完成 BirdSet grouped
+15. 原BirdSet单种子 grouped 5-shot实验保留为历史归档：对MFCC、LogMel、PCEN
+    三条Xeno-canto DS-CNN链路
     5-shot 多标签适配，共训练9组策略；在隔离的201条长录音上复测，并同步评估
     Xeno-canto和完整DB3V。PCEN分类头微调在三个域上均取得正增益。
-16. 完成3条零样本、9条DB3V小样本和3条BirdSet小样本选中链路的严格INT8
-    后训练量化与全量精度复测；15个模型均为int8输入/输出、0个浮点张量。
-    MFCC最稳定，LogMel是绝对精度与稳定性的折中，PCEN出现严重量化退化。
+16. 完成3条零样本和12条旧单种子小样本链路的严格INT8后训练量化与全量复测；
+    其中零样本链路继续使用，12条旧小样本量化结果仅作历史对照。
 17. 补齐严格 `Head-Only`、`BN+Head`、`BN+Head+Replay` 和包含BatchNorm的
     `Full Fine-Tuning`；在三种特征、5/10/20-shot和随机种子42/123/2026上完成
     108组训练、Xeno-canto遗忘测试和共同DB3V held-out评估，并报告均值与样本标准差。
@@ -182,9 +183,142 @@ BirdSet论文引用：
     每组均复测共同BirdSet 20-shot held-out、Xeno-canto和完整DB3V，并对按三seed
     平均适配分数选中的9组策略、27个seed模型执行严格INT8量化与三域复测；
     27个模型均为int8输入/输出、0个浮点张量。
+19. 对DB3V严格实验按三seed平均适配分数选中的9组策略、27个seed模型补齐
+    完整BirdSet SSW FP32跨域复测和严格INT8量化；全部模型重新复测Xeno-canto、
+    BirdSet及10,197条共同DB3V held-out，均为int8输入/输出、0个浮点张量。
 
 尚未完成的实验包括：背景/未知类别、多鸟混合增强、PCEN量化感知训练、其他模型在
 当前八类规范数据上的公平复测，以及改变外部support抽样的重复实验和置信区间估计。
+
+## 实验链路总览：从Xeno-canto基准到严格INT8
+
+当前所有正式可比实验均从同一套八分类Xeno-canto权重开始，模型统一为DS-CNN。
+BirdSet与DB3V从零训练实验仅用于数据角色诊断，不进入本节主链路排名。
+
+```text
+Xeno-canto训练
+  ├── MFCC / LogMel / PCEN FP32基准
+  ├── BirdSet、DB3V零样本泛化
+  ├── DB3V 5/10/20-shot单标签地区适配
+  ├── BirdSet 5/10/20-shot多标签声景适配
+  └── 选中FP32模型 → PTQ严格INT8 → Xeno/BirdSet/DB3V复测
+```
+
+### 统一结果口径
+
+| 数据集 | 主要指标 | 测试粒度与范围 |
+|---|---|---|
+| Xeno-canto | Macro-F1 | 480条内部验证录音；同一录音的一秒窗口先聚合 |
+| DB3V零样本/BirdSet适配复测 | Macro-F1 | 完整10,658条八秒单标签录音 |
+| DB3V小样本适配 | Macro-F1 | 20-shot support之外固定的10,197条共同held-out录音 |
+| BirdSet小样本适配 | Top-1命中任一真实标签、纯单物种支持类Macro-F1 | 与support按原始长录音隔离的201条held-out录音 |
+| DB3V适配后的BirdSet历史复测 | 同上 | 完整211条目标长录音；不可与201条held-out数值直接计算增量 |
+
+以下数值均为百分比。`FP32→INT8`只在同一模型和同一评估范围内比较；历史单种子
+结果与严格三种子均值分别列示，不混合排名。
+
+### Xeno-canto FP32基准与零样本选择
+
+| 特征 | 输入 | Xeno Macro-F1 | DB3V Macro-F1 | BirdSet Top-1 | BirdSet纯单物种Macro-F1 |
+|---|---:|---:|---:|---:|---:|
+| MFCC | 32×13 | 49.62% | 50.47% | 17.32% | 9.77% |
+| **LogMel** | 32×40 | **63.56%** | **67.62%** | 18.27% | **10.12%** |
+| PCEN | 32×40 | 52.69% | 59.93% | **19.57%** | 8.08% |
+
+正式零样本基准保持为
+`Xeno-canto → LogMel → DS-CNN`。LogMel同时取得最高Xeno-canto、DB3V和
+BirdSet纯单物种Macro-F1；PCEN仅在BirdSet多标签Top-1上更高。
+
+### 零样本严格INT8
+
+本表使用同口径的BirdSet 201条held-out和完整10,658条DB3V录音。
+
+| 特征 | Xeno Macro-F1 | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | DB3V Macro-F1 |
+|---|---:|---:|---:|---:|
+| MFCC | 49.62%→48.77% | 17.01%→15.43% | 9.72%→9.41% | 50.47%→51.25% |
+| **LogMel** | **63.56%→59.01%** | 17.87%→18.48% | **9.95%→10.32%** | **67.62%→65.94%** |
+| PCEN | 52.69%→35.07% | **19.37%→21.55%** | 8.04%→9.28% | 59.93%→50.24% |
+
+MFCC量化损失最小但绝对精度偏低；LogMel量化后仍是最佳通用零样本模型；PCEN的
+Xeno Macro-F1下降17.62个百分点，不能直接沿用其FP32结论。
+
+### DB3V严格三种子FP32与INT8
+
+严格实验使用`head_only`、`bn_head`、`bn_head_replay`和`full`四种策略，在
+三种特征、三个shot和随机种子42/123/2026上共完成108次训练。下表为按预设平均
+适配分数选中的9条链路及其27个严格INT8模型。BirdSet使用完整211条录音，
+DB3V使用10,197条共同held-out；数值均为三种子均值±样本标准差。
+
+| 特征 | shot/策略 | Xeno Macro-F1（FP32→INT8） | BirdSet Top-1（FP32→INT8） | BirdSet纯单物种Macro-F1（FP32→INT8） | DB3V Macro-F1（FP32→INT8） |
+|---|---|---:|---:|---:|---:|
+| MFCC | 5/head_only | 47.79±0.60→46.40±0.89 | 13.49±2.11→15.17±2.32 | 8.60±0.92→9.18±0.87 | 53.94±0.46→53.74±0.47 |
+| MFCC | 10/head_only | 48.43±1.35→47.53±1.83 | 14.71±2.73→14.08±2.73 | 9.03±0.89→8.77±0.99 | 53.74±2.07→53.09±1.54 |
+| MFCC | 20/bn_head_replay | 49.64±0.35→47.83±1.88 | 17.01±0.84→16.87±1.48 | 10.53±0.22→9.80±0.40 | 56.64±1.87→56.25±1.98 |
+| LogMel | 5/head_only | 62.33±0.76→52.21±0.80 | 19.71±1.22→24.06±7.23 | 10.56±0.29→14.98±1.83 | 67.72±0.12→64.05±1.79 |
+| **LogMel** | **10/head_only** | **61.20±0.81→57.54±0.52** | **21.37±1.31→28.38±3.82** | **10.91±0.22→15.20±0.77** | **67.84±0.05→68.14±0.17** |
+| LogMel | 20/bn_head_replay | 60.95±0.49→**58.76±0.75** | 20.69±0.07→27.12±1.62 | 10.45±0.06→14.53±0.92 | 66.97±0.25→66.79±0.23 |
+| PCEN | 5/bn_head_replay | 62.58±3.37→31.96±1.37 | 16.69±1.82→19.04±4.29 | 12.67±2.42→8.78±0.33 | 67.64±2.64→46.53±0.63 |
+| PCEN | 10/head_only | 58.01±2.65→37.09±0.64 | 12.76±5.45→22.43±9.66 | 8.66±0.23→13.37±3.33 | 65.27±3.39→52.05±1.57 |
+| PCEN | 20/full | **63.66±0.44**→37.69±1.61 | 11.73±0.34→**34.89±2.73** | 10.52±0.17→**16.04±1.06** | **70.50±0.40**→52.52±0.79 |
+
+当前DB3V严格INT8部署推荐为
+`Xeno-canto → LogMel → DS-CNN → DB3V 10-shot head_only → INT8`：
+DB3V Macro-F1为68.14%±0.17%，相对FP32提高0.30±0.18个百分点；Xeno
+Macro-F1为57.54%±0.52%。LogMel 20-shot `bn_head_replay`的Xeno保留更高，
+但DB3V绝对精度较低。PCEN 20-shot `full`仍是FP32最优，但量化后严重退化。
+
+### BirdSet严格三种子FP32与INT8
+
+BirdSet严格实验同样完成108次FP32训练，并量化9条选中策略的全部三个种子，
+共27个严格INT8模型。以下为三种子均值±样本标准差。
+
+| 特征 | shot/策略 | Xeno Macro-F1（FP32→INT8） | BirdSet Top-1（FP32→INT8） | BirdSet纯单物种Macro-F1（FP32→INT8） | DB3V Macro-F1（FP32→INT8） |
+|---|---|---:|---:|---:|---:|
+| MFCC | 5/bn_head_replay | 48.41±0.44→48.39±1.59 | 20.06±0.57→20.15±0.82 | 13.32±0.56→14.45±1.02 | 48.45±0.47→48.26±0.32 |
+| MFCC | 10/bn_head_replay | 47.89±0.61→47.81±0.71 | 19.88±0.29→20.69±0.57 | 13.44±0.25→15.20±0.43 | 48.45±0.23→48.07±0.37 |
+| **MFCC** | **20/bn_head_replay** | 48.53±0.40→47.72±0.95 | 23.89±0.44→**24.12±1.43** | 17.57±0.49→**18.40±1.35** | 49.23±0.48→48.70±0.45 |
+| LogMel | 5/bn_head_replay | 56.10±0.63→53.14±1.57 | 20.31±2.17→20.22±5.03 | 13.32±2.35→13.20±1.49 | 59.47±1.52→57.85±1.07 |
+| LogMel | 10/bn_head_replay | 56.11±1.31→54.40±1.88 | 20.39±2.02→23.09±4.19 | 13.66±2.57→14.19±0.66 | 59.33±1.67→57.84±2.06 |
+| **LogMel** | **20/head_only** | **57.81±1.24→55.62±2.18** | 18.66±0.91→21.18±1.76 | 10.62±0.75→12.21±1.24 | **63.73±1.05→63.32±1.65** |
+| PCEN | 5/bn_head | 55.27±1.34→17.97±2.16 | 36.11±1.11→19.78±0.09 | 27.11±0.40→4.25±0.08 | 61.41±1.73→27.80±4.79 |
+| PCEN | 10/bn_head | 54.76±1.29→19.03±1.08 | **37.56±2.08**→19.84±0.04 | **28.06±1.60**→4.34±0.11 | 60.56±1.75→27.62±3.52 |
+| PCEN | 20/bn_head | 57.85±0.06→16.85±1.33 | 29.68±0.41→19.28±0.18 | 23.42±0.18→4.18±0.05 | 63.67±0.13→28.53±0.60 |
+
+FP32 BirdSet目标域最优为PCEN 10-shot `bn_head`；严格INT8后，BirdSet专项指标
+最高且量化稳定的是MFCC 20-shot `bn_head_replay`，同时兼顾Xeno、BirdSet和DB3V
+绝对精度的链路为LogMel 20-shot `head_only`。三个PCEN严格链路量化后均不可用，
+后续必须改用量化感知训练并重新执行全部held-out评估。
+
+### 当前推荐与未闭环项
+
+| 使用场景 | 当前推荐链路 | 关键结果 |
+|---|---|---|
+| 通用FP32零样本 | Xeno→LogMel→DS-CNN | Xeno 63.56%，DB3V 67.62% |
+| 通用INT8零样本 | Xeno→LogMel→DS-CNN→INT8 | Xeno 59.01%，DB3V 65.94% |
+| DB3V严格FP32 | PCEN 20-shot/full | DB3V 70.50%±0.40%，Xeno 63.66%±0.44% |
+| DB3V严格INT8 | LogMel 10-shot/head_only | DB3V 68.14%±0.17%，Xeno 57.54%±0.52% |
+| BirdSet严格FP32 | PCEN 10-shot/bn_head | Top-1 37.56%±2.08%，单物种F1 28.06%±1.60% |
+| BirdSet专项稳定INT8 | MFCC 20-shot/bn_head_replay | Top-1 24.12%，单物种F1 18.40% |
+| BirdSet跨域均衡INT8 | LogMel 20-shot/head_only | Xeno 55.62%，BirdSet Top-1 21.18%，DB3V 63.32% |
+
+当前标准量化工件包括3个零样本、27个DB3V严格多种子和27个BirdSet严格多种子
+模型，合计57个TFLite模型。另保留12个旧单种子小样本模型作为历史对照；包括
+历史归档在内共69个。所有模型均为int8输入/输出、0个浮点张量、无
+`QUANTIZE`/`DEQUANTIZE`算子，大小约49,968–49,984 bytes。
+
+本节汇总来源：
+
+- Xeno基准与DB3V零样本：`src/experiments/Feature_comparison_8class/comparison_summary.csv`
+- BirdSet完整零样本：`src/experiments/Feature_comparison_8class/birdset_full_summary.csv`
+- DB3V严格三种子：`src/experiments/DB3V_fewshot_ablation_multiseed_8class/aggregate.csv`
+- DB3V严格多种子INT8：`src/experiments/DB3V_strict_INT8_quantization_8class/aggregate.csv`
+- BirdSet严格三种子FP32：`src/experiments/BirdSet_fewshot_ablation_multiseed_8class/aggregate.csv`
+- BirdSet严格多种子INT8：`src/experiments/BirdSet_strict_INT8_quantization_8class/aggregate.csv`
+- 零样本INT8及旧单种子归档：`src/experiments/INT8_quantization_8class/summary.csv`
+- 旧单种子FP32归档：`src/experiments/DB3V_fewshot_comparison_8class/`与
+  `src/experiments/BirdSet_fewshot_8class/`
+
+后续章节保留完整实验协议、候选策略、数据划分、逐粒度指标、复现命令及原始报告路径。
 
 ## 当前实验角色与完整链路
 
@@ -507,9 +641,10 @@ Log-Mel 特征，先建立 support/test 隔离划分，再保存零样本报告�
 - BirdSet 和 DB3V 应分别微调，才能区分“跨数据集适配”与“特定地区适配”。
 - 每次微调后同时复测 Xeno-canto、BirdSet held-out 和 DB3V held-out。
 
-### DB3V 5/10/20-shot 地区适配结果
+### DB3V旧单种子5/10/20-shot实验（历史归档）
 
-已对 Xeno-canto 训练的 MFCC、LogMel、PCEN 三条 DS-CNN 链路完成 DB3V
+本节保留旧`head`、`last_block`、`all`单种子实验以便追溯，不再参与当前模型
+选择或部署推荐。已对 Xeno-canto 训练的 MFCC、LogMel、PCEN 三条 DS-CNN 链路完成 DB3V
 5/10/20-shot 小样本优化。三个 support 集固定随机种子42并嵌套为
 `5-shot ⊂ 10-shot ⊂ 20-shot`；三种特征使用完全相同的录音身份。由于地区2的
 `Setophaga_aestiva` 只有9条录音、`Certhia_americana` 只有12条录音，目标
@@ -736,8 +871,9 @@ BirdSet。每个结果均为3个随机种子的均值±样本标准差（`ddof=1
   略低于`full`，因此未被选中。
 - LogMel对严格全量微调较敏感；在共同held-out上，三个shot均由`head_only`取得
   最高DB3V均值。20-shot `full`的标准差增至1.09个百分点且Xeno下降4.39个百分点。
-- 这些新策略尚未在BirdSet多标签声景上复测，所以`PCEN + 20-shot + full`当前只
-  是DB3V地区适配候选，不能替换唯一的Xeno-canto LogMel零样本基准或宣称为通用模型。
+- 选中的9组策略现已完成全部三个seed的完整BirdSet跨域复测和严格INT8量化；
+  FP32最高的`PCEN + 20-shot + full`量化后DB3V Macro-F1降至52.52%±0.79%，
+  当前DB3V严格INT8推荐改为`LogMel + 10-shot + head_only`。
 
 完整36组聚合结果和108个逐seed结果是本节数值的直接来源：
 
@@ -748,6 +884,8 @@ BirdSet。每个结果均为3个随机种子的均值±样本标准差（`ddof=1
 - 108个逐seed索引：`src/experiments/DB3V_fewshot_ablation_multiseed_8class/runs.csv`
 - 原始模型、逐轮历史、Xeno遗忘和DB3V报告：
   `src/experiments/DB3V_fewshot_ablation_multiseed_8class/{MFCC,LogMel,PCEN}/{5shot,10shot,20shot}/{head_only,bn_head,bn_head_replay,full}/seed_<seed>/`
+- 选中链路的BirdSet FP32复测和严格INT8结果：
+  `src/experiments/DB3V_strict_INT8_quantization_8class/`
 - DB3V数据来源与许可：[Zenodo 11544734](https://doi.org/10.5281/zenodo.11544734)；
   固定划分协议位于被Git排除的
   `src/dataset_processing/output/<feature>_DB3V_external_split*_8class/split_manifest.json`。
@@ -760,8 +898,9 @@ BirdSet。每个结果均为3个随机种子的均值±样本标准差（`ddof=1
   --summarize-only
 ```
 
-### BirdSet grouped 5-shot 多标签适配结果
+### BirdSet旧单种子grouped 5-shot实验（历史归档）
 
+本节保留旧三策略、单随机种子结果以便追溯，不再参与当前模型选择或部署推荐。
 已对 Xeno-canto 训练的 MFCC、LogMel、PCEN 三条 DS-CNN 链路完成 BirdSet SSW
 小样本适配。划分固定随机种子42，并以原始长录音为隔离单位：support包含10条长
 录音、684个五秒片段和3,420个一秒窗口；held-out包含另外201条长录音、18,994个
@@ -910,11 +1049,14 @@ Macro-F1；PCEN 20-shot更偏向Xeno保留和DB3V跨域平衡。因为shot加入
 
 ## 严格INT8量化接口与精度测试
 
-已完成全部15条FP32选中链路的训练后静态量化（PTQ）和同口径全量复测：
+当前标准已完成57个FP32模型的训练后静态量化（PTQ）和同口径全量复测：
 
 - 3条零样本基准：MFCC、LogMel、PCEN；
-- 9条DB3V小样本链路：三种特征各自的5/10/20-shot选中策略；
-- 3条BirdSet grouped 5-shot链路：三种特征各自的选中策略。
+- 27个DB3V严格小样本模型：9组按三seed平均适配分数选中的策略×3个seed；
+- 27个BirdSet严格小样本模型：9组按三seed平均适配分数选中的策略×3个seed。
+
+另外保留9条DB3V和3条BirdSet旧单种子小样本量化结果作为历史对照，但不再参与
+当前推荐。
 
 量化结果不用于重新选择FP32策略。代表性数据固定为256个训练窗口：零样本只使用
 Xeno-canto训练特征；小样本链路在Xeno训练特征之外只加入对应DB3V或BirdSet
@@ -930,7 +1072,7 @@ support。任何held-out和Xeno验证数据都不参与校准。
 
 每条链路从TFLite模型读取自己的input scale和zero-point，按
 `q=clip(round(x/scale)+zero_point,-128,127)` 量化输入，再使用输出scale和
-zero-point反量化后执行原有时间聚合。15个模型全部满足：
+zero-point反量化后执行原有时间聚合。当前57个标准模型和12个历史模型全部满足：
 
 - 仅允许 `TFLITE_BUILTINS_INT8`；
 - 输入、权重、激活和输出走整数路径，输入/输出均为int8；
@@ -951,42 +1093,42 @@ BirdSet使用与support隔离的201条长录音；DB3V使用完整10,658条录�
 MFCC量化最稳定，但LogMel量化后的Xeno和DB3V绝对Macro-F1仍最高，因此严格INT8
 零样本基准推荐保持 `Xeno-canto → LogMel → DS-CNN`。PCEN不能直接沿用FP32结论。
 
-### DB3V小样本INT8结果
+### DB3V严格5/10/20-shot多种子INT8结果
 
 DB3V统一使用20-shot support之外的10,197条共同held-out；BirdSet使用完整目标
-子集，因为DB3V适配没有读取BirdSet。
+子集，因为DB3V适配没有读取BirdSet。每个“特征×shot”按三个seed的平均适配分数
+选择一个严格策略，再量化该策略的全部三个seed，共27个模型。
 
-| 链路 | Xeno Macro-F1（FP32→INT8） | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | DB3V Macro-F1 |
-|---|---:|---:|---:|---:|
-| MFCC/5-shot/head | 46.10% → 46.05% (-0.05 pp) | 10.72% → 12.60% (+1.88 pp) | 7.00% → 7.91% (+0.91 pp) | 55.58% → 55.55% (-0.04 pp) |
-| MFCC/10-shot/head | 47.87% → 47.47% (-0.40 pp) | 11.93% → 11.74% (-0.19 pp) | 7.48% → 7.39% (-0.08 pp) | 56.94% → 56.46% (-0.48 pp) |
-| MFCC/20-shot/head | 40.47% → 40.47% (0.00 pp) | 24.17% → 23.92% (-0.26 pp) | 14.92% → 15.08% (+0.16 pp) | 61.38% → 60.81% (-0.58 pp) |
-| LogMel/5-shot/head | 60.05% → 53.45% (-6.60 pp) | 18.81% → 30.86% (+12.05 pp) | 9.19% → 15.31% (+6.12 pp) | 67.64% → 64.68% (-2.96 pp) |
-| **LogMel/10-shot/last_block** | **62.13% → 58.54% (-3.58 pp)** | **18.86% → 22.85% (+3.99 pp)** | **9.90% → 12.11% (+2.21 pp)** | **68.59% → 69.70% (+1.12 pp)** |
-| LogMel/20-shot/all | 63.45% → 58.01% (-5.44 pp) | 19.47% → 20.25% (+0.77 pp) | 10.46% → 11.45% (+0.99 pp) | 68.86% → 67.91% (-0.96 pp) |
-| PCEN/5-shot/all | 59.92% → 33.26% (-26.66 pp) | 9.81% → 25.72% (+15.91 pp) | 9.42% → 14.24% (+4.83 pp) | 65.82% → 47.13% (-18.69 pp) |
-| PCEN/10-shot/head | 60.74% → 38.55% (-22.20 pp) | 12.70% → 11.77% (-0.93 pp) | 9.86% → 9.62% (-0.23 pp) | 65.95% → 52.00% (-13.95 pp) |
-| PCEN/20-shot/last_block | 61.51% → 35.07% (-26.43 pp) | 9.70% → 37.85% (+28.15 pp) | 9.16% → 17.67% (+8.51 pp) | 70.60% → 54.46% (-16.14 pp) |
+| 特征 | shot/策略 | Xeno Macro-F1 | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | DB3V Macro-F1 |
+|---|---|---:|---:|---:|---:|
+| MFCC | 5 / `head_only` | 47.79±0.60 → 46.40±0.89 | 13.49±2.11 → 15.17±2.32 | 8.60±0.92 → 9.18±0.87 | 53.94±0.46 → 53.74±0.47 |
+| MFCC | 10 / `head_only` | 48.43±1.35 → 47.53±1.83 | 14.71±2.73 → 14.08±2.73 | 9.03±0.89 → 8.77±0.99 | 53.74±2.07 → 53.09±1.54 |
+| MFCC | 20 / `bn_head_replay` | 49.64±0.35 → 47.83±1.88 | 17.01±0.84 → 16.87±1.48 | 10.53±0.22 → 9.80±0.40 | 56.64±1.87 → 56.25±1.98 |
+| LogMel | 5 / `head_only` | 62.33±0.76 → 52.21±0.80 | 19.71±1.22 → 24.06±7.23 | 10.56±0.29 → 14.98±1.83 | 67.72±0.12 → 64.05±1.79 |
+| **LogMel** | **10 / `head_only`** | **61.20±0.81 → 57.54±0.52** | **21.37±1.31 → 28.38±3.82** | **10.91±0.22 → 15.20±0.77** | **67.84±0.05 → 68.14±0.17** |
+| LogMel | 20 / `bn_head_replay` | 60.95±0.49 → **58.76±0.75** | 20.69±0.07 → 27.12±1.62 | 10.45±0.06 → 14.53±0.92 | 66.97±0.25 → 66.79±0.23 |
+| PCEN | 5 / `bn_head_replay` | 62.58±3.37 → 31.96±1.37 | 16.69±1.82 → 19.04±4.29 | 12.67±2.42 → 8.78±0.33 | 67.64±2.64 → 46.53±0.63 |
+| PCEN | 10 / `head_only` | 58.01±2.65 → 37.09±0.64 | 12.76±5.45 → 22.43±9.66 | 8.66±0.23 → 13.37±3.33 | 65.27±3.39 → 52.05±1.57 |
+| PCEN | 20 / `full` | **63.66±0.44** → 37.69±1.61 | 11.73±0.34 → **34.89±2.73** | 10.52±0.17 → **16.04±1.06** | **70.50±0.40** → 52.52±0.79 |
 
-FP32的DB3V最高链路是PCEN 20-shot，但严格INT8后Macro-F1从70.60%降至54.46%。
-严格INT8部署推荐改为
-`Xeno-canto → LogMel → DS-CNN → DB3V 10-shot last_block`：共同held-out
-Macro-F1为69.70%，Xeno Macro-F1为58.54%，且BirdSet两项指标均提高。
+严格INT8部署推荐为
+`Xeno-canto → LogMel → DS-CNN → DB3V 10-shot head_only`：共同held-out
+Macro-F1为68.14%±0.17%，Xeno Macro-F1为57.54%±0.52%。FP32最高的PCEN
+20-shot `full`量化后DB3V Macro-F1降至52.52%±0.79%，当前PTQ不可部署。
 
-### BirdSet小样本INT8结果
+结果来源：
 
-BirdSet使用与support按长录音隔离的201条held-out；DB3V完整集没有参与本轮训练。
+- `src/experiments/DB3V_strict_INT8_quantization_8class/README.md`
+- `src/experiments/DB3V_strict_INT8_quantization_8class/experiment_protocol.json`
+- `src/experiments/DB3V_strict_INT8_quantization_8class/summary.csv`
+- `src/experiments/DB3V_strict_INT8_quantization_8class/aggregate.csv`
+- `src/experiments/DB3V_strict_INT8_quantization_8class/models/<chain_id>/`
 
-| 链路 | Xeno Macro-F1（FP32→INT8） | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | DB3V Macro-F1 |
-|---|---:|---:|---:|---:|
-| MFCC/5-shot/all | 42.43% → 39.62% (-2.81 pp) | 24.23% → 24.97% (+0.74 pp) | 17.75% → 18.72% (+0.97 pp) | 41.58% → 41.81% (+0.23 pp) |
-| **LogMel/5-shot/head** | **55.80% → 53.68% (-2.12 pp)** | **21.09% → 23.82% (+2.73 pp)** | **15.15% → 16.97% (+1.82 pp)** | **57.94% → 58.08% (+0.14 pp)** |
-| PCEN/5-shot/head | 59.44% → 34.35% (-25.09 pp) | 35.70% → 37.37% (+1.67 pp) | 24.66% → 17.47% (-7.19 pp) | 66.66% → 45.97% (-20.69 pp) |
+### 旧单种子小样本INT8（历史归档）
 
-PCEN INT8的BirdSet Top-1仍最高，但纯单物种Macro-F1下降7.19个百分点，且Xeno和
-DB3V分别下降25.09和20.69个百分点。该Top-1上升不能解释为稳定增益。兼顾真实
-多标签声景、纯单物种和跨域保留时，严格INT8推荐
-`Xeno-canto → LogMel → DS-CNN → BirdSet grouped 5-shot head`。
+旧9条DB3V和3条BirdSet单种子小样本量化结果不再参与推荐，仅保留在
+`src/experiments/INT8_quantization_8class/`用于历史追溯。当前BirdSet结论以下一节
+严格5/10/20-shot三种子结果为准。
 
 ### BirdSet严格5/10/20-shot多种子INT8结果
 
@@ -1024,8 +1166,8 @@ Xeno Macro-F1均下降35.73–40.99个百分点，当前PTQ不可用于部署，
 
 - MFCC是最耐PTQ量化的特征；小样本链路的主要Macro-F1变化均在约3个百分点内。
 - LogMel是严格INT8下绝对精度与稳定性的较优折中。
-- PCEN各数据集输入饱和率很低，但历史15条链路和新增27条多种子链路的
-  Xeno/DB3V Macro-F1均严重下降；新增链路平均降幅达到约33–41个百分点，
+- PCEN各数据集输入饱和率很低，但DB3V和BirdSet两套严格多种子链路的
+  Xeno/DB3V Macro-F1均严重下降，降幅依任务和shot达到约13–41个百分点，
   说明输入截断不是主因，更可能是内部激活量化敏感，仍需逐层分析确认。
 - 如果必须部署PCEN，需要进行量化感知训练后重新执行全部held-out评估。
 
@@ -1033,14 +1175,24 @@ Xeno Macro-F1均下降35.73–40.99个百分点，当前PTQ不可用于部署，
 
 - 输入、转换与推理接口：`src/experiments/int8_inference.py`
 - 全链路评估入口：`src/experiments/evaluate_int8_experiments.py`
-- 详细实验说明：`src/experiments/INT8_quantization_8class/README.md`
-- 严格性、校准隔离和链路清单：`src/experiments/INT8_quantization_8class/experiment_protocol.json`
-- 每条链路的scale/zero-point：`src/experiments/INT8_quantization_8class/input_interfaces.json`
-- 15条统一结果：`src/experiments/INT8_quantization_8class/summary.csv`
-- 模型及逐类/逐粒度原始报告：`src/experiments/INT8_quantization_8class/models/<chain_id>/`
+- 零样本结果与旧单种子归档：`src/experiments/INT8_quantization_8class/`
+- DB3V严格多种子量化：`src/experiments/DB3V_strict_INT8_quantization_8class/`
+- BirdSet严格多种子量化：`src/experiments/BirdSet_strict_INT8_quantization_8class/`
+- 各量化目录中的`experiment_protocol.json`、`input_interfaces.json`、
+  `summary.csv`、`aggregate.csv`和`models/<chain_id>/`分别保存协议、接口、
+  逐seed结果、三seed统计和逐粒度原始报告。
 
 ```powershell
 & .\.venv\Scripts\python.exe src\experiments\evaluate_int8_experiments.py `
+  --families db3v_strict_fewshot `
+  --output-dir src\experiments\DB3V_strict_INT8_quantization_8class `
+  --representative-samples 256 `
+  --batch-size 128 `
+  --num-threads 4
+
+& .\.venv\Scripts\python.exe src\experiments\evaluate_int8_experiments.py `
+  --families birdset_strict_fewshot `
+  --output-dir src\experiments\BirdSet_strict_INT8_quantization_8class `
   --representative-samples 256 `
   --batch-size 128 `
   --num-threads 4
@@ -1056,15 +1208,10 @@ Xeno Macro-F1均下降35.73–40.99个百分点，当前PTQ不可用于部署，
 - **录音/片段级**：平均同一来源连续窗口的 softmax 概率，衡量时间聚合后的识别能力。
 - **BirdSet任意目标命中率**：用于 BirdSet 内部多标签验证，表示概率最高类别是否命中任一真实标签；其定义不同于单标签 Accuracy。
 
-原27组单seed结果表明：增加DB3V support总体能够提高三个地区的识别能力，但不同
-特征的跨域代价差异很大。LogMel 20-shot在DB3V、Xeno和BirdSet之间取得较稳健的
-平衡；旧PCEN 20-shot链路取得最高DB3V Macro-F1，但BirdSet Top-1明显下降。新增
-三seed严格实验中，PCEN 20-shot Full Fine-Tuning达到70.50%±0.40%的DB3V
-Macro-F1并提高Xeno指标；该模型仍是DB3V support适配候选，不能用反向BirdSet
-support实验替代其尚缺的BirdSet严格跨域复测。反向使用
-BirdSet support适配时，PCEN分类头微调在BirdSet、Xeno和DB3V上都取得正增益，说明
-“地区单标签适配”和“跨数据集多标签声景适配”必须保留为两条独立实验线路。
-BirdSet严格多种子FP32和INT8实验现已完成：FP32以PCEN 10-shot `BN+Head`取得
-最高BirdSet结果，但PCEN PTQ严重退化。部署排序必须按量化报告重新解释；通用
-BirdSet严格INT8链路优先LogMel 20-shot `Head-Only`，只强调BirdSet指标和量化
-稳定性时可选MFCC 20-shot `BN+Head+Replay`。
+当前结论仅按严格四策略、5/10/20-shot和三随机种子标准解释。DB3V适配中，
+PCEN 20-shot `Full`取得最高FP32 Macro-F1 70.50%±0.40%，但PTQ后降至
+52.52%±0.79%；严格INT8部署改选LogMel 10-shot `Head-Only`，DB3V Macro-F1为
+68.14%±0.17%。BirdSet适配中，FP32以PCEN 10-shot `BN+Head`取得最高目标域结果，
+但PCEN PTQ同样严重退化；跨域均衡INT8链路优先LogMel 20-shot `Head-Only`，
+只强调BirdSet指标和量化稳定性时可选MFCC 20-shot `BN+Head+Replay`。“地区单标签
+适配”和“跨数据集多标签声景适配”仍是两条独立线路，不能互相替代。

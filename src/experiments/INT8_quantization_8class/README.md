@@ -1,10 +1,17 @@
-# 严格 INT8 量化实验
+# 严格INT8量化：零样本与旧单种子归档
 
 本目录保存15条已经由FP32实验选中的模型链路的严格INT8模型与精度报告：
 
 - 3条 Xeno-canto 零样本基准：MFCC、LogMel、PCEN；
 - 9条 DB3V 5/10/20-shot 选中链路：每种特征在每个shot下的FP32选中策略；
 - 3条 BirdSet grouped 5-shot 选中链路。
+
+其中3条零样本结果继续作为当前基准；12条小样本结果来自旧单种子、
+`head/last_block/all`策略实验，仅用于历史追溯，不再参与当前推荐。当前严格
+多种子小样本结果分别位于：
+
+- `../DB3V_strict_INT8_quantization_8class/`
+- `../BirdSet_strict_INT8_quantization_8class/`
 
 量化结果不参与重新选择特征、shot、微调策略或轮次。零样本模型只使用Xeno-canto
 训练特征校准；小样本模型只额外加入对应support。BirdSet、DB3V held-out和
@@ -41,7 +48,7 @@ LogMel和PCEN虽然形状相同，但语义和校准数据不同，接口必须�
 MFCC量化最稳定；LogMel量化损失更大，但INT8后的绝对Xeno和DB3V Macro-F1仍是
 三条零样本链路中最高；PCEN不适合直接做训练后静态INT8量化。
 
-## DB3V小样本结果
+## DB3V旧单种子小样本结果（历史归档）
 
 DB3V统一使用20-shot support之外的10,197条共同held-out；BirdSet使用完整目标
 子集，因为DB3V适配没有读取BirdSet。
@@ -58,12 +65,13 @@ DB3V统一使用20-shot support之外的10,197条共同held-out；BirdSet使用�
 | PCEN/10-shot/head | 60.74% → 38.55% (-22.20 pp) | 12.70% → 11.77% (-0.93 pp) | 9.86% → 9.62% (-0.23 pp) | 65.95% → 52.00% (-13.95 pp) |
 | PCEN/20-shot/last_block | 61.51% → 35.07% (-26.43 pp) | 9.70% → 37.85% (+28.15 pp) | 9.16% → 17.67% (+8.51 pp) | 70.60% → 54.46% (-16.14 pp) |
 
-严格INT8部署的DB3V推荐链路改为
+按当时旧单种子结果，INT8部署的DB3V推荐链路曾为
 `Xeno-canto → LogMel → DS-CNN → DB3V 10-shot last_block`。它在共同held-out上
 达到69.70% Macro-F1，同时保持58.54%的Xeno Macro-F1；FP32最高的PCEN 20-shot
-在严格INT8下退化到54.46%，不能沿用FP32排序。
+在严格INT8下退化到54.46%。该推荐已由严格三种子
+`LogMel 10-shot head_only`结果替代。
 
-## BirdSet小样本结果
+## BirdSet旧单种子小样本结果（历史归档）
 
 BirdSet使用与support按长录音隔离的201条held-out；DB3V完整集没有参与本轮训练。
 
@@ -76,9 +84,10 @@ BirdSet使用与support按长录音隔离的201条held-out；DB3V完整集没有
 如果只看BirdSet Top-1，PCEN INT8仍为37.37%；但其纯单物种Macro-F1下降7.19个
 百分点，Xeno和DB3V分别下降25.09和20.69个百分点，因此不能视为稳定提升。兼顾
 多标签声景、纯单物种和跨域保留时，严格INT8推荐
-`Xeno-canto → LogMel → DS-CNN → BirdSet grouped 5-shot head`。
+`Xeno-canto → LogMel → DS-CNN → BirdSet grouped 5-shot head`。该历史推荐已由
+严格5/10/20-shot三种子结果替代。
 
-## 结论与限制
+## 历史结论与限制
 
 - MFCC是当前最耐PTQ量化的特征，所有小样本链路的主要Macro-F1变化均在约3个百分点内。
 - LogMel是绝对精度与量化稳定性的较优折中，但不同微调轮次仍会造成2–7个百分点的Xeno损失。
@@ -102,6 +111,8 @@ BirdSet使用与support按长录音隔离的201条held-out；DB3V完整集没有
 
 ```powershell
 & .\.venv\Scripts\python.exe src\experiments\evaluate_int8_experiments.py `
+  --families zero_shot db3v_fewshot birdset_fewshot `
+  --output-dir src\experiments\INT8_quantization_8class `
   --representative-samples 256 `
   --batch-size 128 `
   --num-threads 4
