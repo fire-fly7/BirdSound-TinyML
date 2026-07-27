@@ -1,5 +1,5 @@
 {
-  "created_at_utc": "2026-07-27T06:48:02.879642+00:00",
+  "created_at_utc": "2026-07-27T07:41:27.174830+00:00",
   "chain": {
     "chain_id": "db3v_strict_20shot_mfcc_bn_head_replay_seed_2026",
     "family": "db3v_strict_fewshot",
@@ -8,7 +8,7 @@
     "policy": "bn_head_replay",
     "seed": 2026,
     "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\DS_CNN_Model.h5",
-    "birdset_scope": "full_211_recordings",
+    "birdset_scope": "common_20shot_heldout_197_recordings",
     "db3v_scope": "common_20shot_heldout_10197_recordings"
   },
   "input_interface": {
@@ -84,7 +84,7 @@
   "fp32_reference": {
     "sources": {
       "xeno_validation": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\DS_CNN_Model.fewshot.json",
-      "birdset": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\BirdSet_SSW_full_evaluation.json",
+      "birdset": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\BirdSet_common_20shot_heldout_evaluation.json",
       "db3v": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\DB3V_common_20shot_heldout_evaluation.json"
     },
     "xeno_validation": {
@@ -95,9 +95,9 @@
       "top_3_accuracy": 0.75625
     },
     "birdset": {
-      "top1_any_target_accuracy": 0.16307551580445168,
-      "top3_any_target_accuracy": 0.43307246671409694,
-      "singleton_supported_macro_f1": 0.10311069546507749
+      "top1_any_target_accuracy": 0.15811661647960581,
+      "top3_any_target_accuracy": 0.4251847796331782,
+      "singleton_supported_macro_f1": 0.10182252161377348
     },
     "db3v": {
       "accuracy": 0.6132195743846229,
@@ -118,9 +118,9 @@
       "top_3_accuracy": 0.7645833333333333
     },
     "birdset": {
-      "top1_any_target_accuracy": 0.15743469864823662,
-      "top3_any_target_accuracy": 0.4329200121963614,
-      "singleton_supported_macro_f1": 0.0975461422064715
+      "top1_any_target_accuracy": 0.15192992061319463,
+      "top3_any_target_accuracy": 0.42502053107035315,
+      "singleton_supported_macro_f1": 0.09587385832219665
     },
     "db3v": {
       "accuracy": 0.6071393547121703,
@@ -135,12 +135,12 @@
       "macro_f1_retention": 0.947150828073112
     },
     "birdset": {
-      "top1_any_target_accuracy": -0.005640817156215061,
-      "top1_any_target_accuracy_retention": 0.9654097849797445,
-      "top3_any_target_accuracy": -0.0001524545177355452,
-      "top3_any_target_accuracy_retention": 0.9996479699601033,
-      "singleton_supported_macro_f1": -0.005564553258605998,
-      "singleton_supported_macro_f1_retention": 0.9460332099060407
+      "top1_any_target_accuracy": -0.006186695866411185,
+      "top1_any_target_accuracy_retention": 0.9608725761772853,
+      "top3_any_target_accuracy": -0.0001642485628250423,
+      "top3_any_target_accuracy_retention": 0.9996137007468453,
+      "singleton_supported_macro_f1": -0.005948663291576825,
+      "singleton_supported_macro_f1_retention": 0.9415781185017111
     },
     "db3v": {
       "accuracy": -0.006080219672452647,
@@ -162,8 +162,8 @@
         "clipped_low": 0,
         "clipped_high": 294,
         "input_saturation_fraction": 0.00019351883056702333,
-        "inference_seconds": 0.05151729998760857,
-        "samples_per_second": 70888.80824263721
+        "inference_seconds": 0.04994659998919815,
+        "samples_per_second": 73118.09013606152
       },
       "slice_level": {
         "samples": 3652,
@@ -467,114 +467,140 @@
       }
     },
     "birdset": {
-      "dataset_dir": "src\\dataset_processing\\output\\MFCC_dataset_BirdSet_SSW_8class",
+      "dataset_dir": "src\\dataset_processing\\output\\MFCC_BirdSet_external_split_20shot_8class\\test",
+      "sample_specification": {
+        "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+        "scope": "common_20shot_heldout_197_recordings",
+        "dataset": "BirdSet SSW test_5s",
+        "source_split": "SSW test_5s shards 1-4",
+        "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+        "split_unit": "original long recording",
+        "split_seed": 42,
+        "maximum_support_scale_excluded": 20,
+        "recordings": 197,
+        "clips_5s": 18265,
+        "slices_1s": 91325,
+        "slices_per_clip": 5,
+        "sample_rate_hz": 16000,
+        "feature_type": "mfcc",
+        "feature_shape": [
+          32,
+          13
+        ],
+        "classes": 8,
+        "globally_singleton_clips": 9626,
+        "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+        "dataset_dir": "src\\dataset_processing\\output\\MFCC_BirdSet_external_split_20shot_8class\\test",
+        "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
+        "support_test_recording_overlap": 0
+      },
       "inference": {
-        "samples": 98390,
-        "values": 40930240,
+        "samples": 91325,
+        "values": 37991200,
         "clipped_low": 0,
-        "clipped_high": 5119,
-        "input_saturation_fraction": 0.0001250664545333719,
-        "inference_seconds": 1.2934226000215858,
-        "samples_per_second": 76069.49190338717
+        "clipped_high": 5085,
+        "input_saturation_fraction": 0.00013384678557139547,
+        "inference_seconds": 1.1849438000062946,
+        "samples_per_second": 77071.16573757748
       },
       "slice_level": {
-        "samples": 98390,
-        "top1_any_target_accuracy": 0.148460209370871,
-        "top3_any_target_accuracy": 0.4013517633905885,
+        "samples": 91325,
+        "top1_any_target_accuracy": 0.14333424582534904,
+        "top3_any_target_accuracy": 0.3942513003011224,
         "per_class": {
           "Agelaius_phoeniceus": {
             "label": 0,
-            "support": 32400,
-            "top1_recall": 0.14459876543209876
+            "support": 29245,
+            "top1_recall": 0.1411181398529663
           },
           "Cardinalis_cardinalis": {
             "label": 1,
-            "support": 18905,
-            "top1_recall": 0.020682359164242263
+            "support": 18205,
+            "top1_recall": 0.021312826146663005
           },
           "Certhia_americana": {
             "label": 2,
-            "support": 980,
-            "top1_recall": 0.6887755102040817
+            "support": 875,
+            "top1_recall": 0.6594285714285715
           },
           "Corvus_brachyrhynchos": {
             "label": 3,
-            "support": 19305,
-            "top1_recall": 0.38803418803418804
+            "support": 17835,
+            "top1_recall": 0.376058312307261
           },
           "Setophaga_aestiva": {
             "label": 4,
-            "support": 1765,
-            "top1_recall": 0.027195467422096317
+            "support": 1590,
+            "top1_recall": 0.02830188679245283
           },
           "Setophaga_ruticilla": {
             "label": 5,
-            "support": 10,
-            "top1_recall": 0.0
+            "support": 0,
+            "top1_recall": null
           },
           "Spinus_tristis": {
             "label": 6,
-            "support": 15150,
-            "top1_recall": 0.027590759075907592
+            "support": 13385,
+            "top1_recall": 0.02674635786327979
           },
           "Turdus_migratorius": {
             "label": 7,
-            "support": 15945,
-            "top1_recall": 0.056381310755722794
+            "support": 15280,
+            "top1_recall": 0.0581151832460733
           }
         }
       },
       "clip_level": {
-        "samples": 19678,
-        "top1_any_target_accuracy": 0.15743469864823662,
-        "top3_any_target_accuracy": 0.4329200121963614,
+        "samples": 18265,
+        "top1_any_target_accuracy": 0.15192992061319463,
+        "top3_any_target_accuracy": 0.42502053107035315,
         "per_class": {
           "Agelaius_phoeniceus": {
             "label": 0,
-            "support": 6480,
-            "top1_recall": 0.10725308641975309
+            "support": 5849,
+            "top1_recall": 0.10360745426568645
           },
           "Cardinalis_cardinalis": {
             "label": 1,
-            "support": 3781,
-            "top1_recall": 0.024332187252049723
+            "support": 3641,
+            "top1_recall": 0.025267783575940676
           },
           "Certhia_americana": {
             "label": 2,
-            "support": 196,
-            "top1_recall": 0.7091836734693877
+            "support": 175,
+            "top1_recall": 0.68
           },
           "Corvus_brachyrhynchos": {
             "label": 3,
-            "support": 3861,
-            "top1_recall": 0.5167055167055167
+            "support": 3567,
+            "top1_recall": 0.5001401738155312
           },
           "Setophaga_aestiva": {
             "label": 4,
-            "support": 353,
-            "top1_recall": 0.014164305949008499
+            "support": 318,
+            "top1_recall": 0.015723270440251572
           },
           "Setophaga_ruticilla": {
             "label": 5,
-            "support": 2,
-            "top1_recall": 0.0
+            "support": 0,
+            "top1_recall": null
           },
           "Spinus_tristis": {
             "label": 6,
-            "support": 3030,
-            "top1_recall": 0.005940594059405941
+            "support": 2677,
+            "top1_recall": 0.005976839745984311
           },
           "Turdus_migratorius": {
             "label": 7,
-            "support": 3189,
-            "top1_recall": 0.04829100031357792
+            "support": 3056,
+            "top1_recall": 0.05006544502617801
           }
         }
       },
       "globally_singleton_clip_level": {
-        "samples": 10230,
-        "accuracy": 0.1458455522971652,
-        "supported_macro_f1": 0.0975461422064715,
+        "samples": 9626,
+        "accuracy": 0.14003739871182214,
+        "supported_macro_f1": 0.09587385832219665,
         "supported_classes": [
           "Agelaius_phoeniceus",
           "Cardinalis_cardinalis",
@@ -586,20 +612,20 @@
         ],
         "confusion_matrix": [
           [
-            235,
-            28,
-            1807,
-            821,
-            23,
+            220,
+            27,
+            1785,
+            713,
+            22,
             41,
-            26,
+            23,
             7
           ],
           [
-            96,
+            94,
             43,
-            918,
-            582,
+            874,
+            561,
             2,
             23,
             2,
@@ -608,8 +634,8 @@
           [
             4,
             0,
-            95,
-            10,
+            79,
+            9,
             0,
             17,
             1,
@@ -618,18 +644,18 @@
           [
             5,
             5,
-            958,
-            1061,
+            931,
+            950,
             2,
-            54,
+            49,
             0,
             4
           ],
           [
             0,
             0,
-            37,
-            102,
+            29,
+            99,
             0,
             0,
             0,
@@ -646,24 +672,24 @@
             0
           ],
           [
-            26,
+            25,
             4,
-            1009,
-            429,
-            40,
-            139,
-            6,
+            926,
+            377,
+            39,
+            105,
+            5,
             2
           ],
           [
-            27,
+            24,
             44,
-            961,
-            296,
+            955,
+            262,
             5,
             139,
             8,
-            52
+            51
           ]
         ]
       }
@@ -676,8 +702,8 @@
         "clipped_low": 0,
         "clipped_high": 5451,
         "input_saturation_fraction": 0.00016062770158643946,
-        "inference_seconds": 1.0537348999932874,
-        "samples_per_second": 77416.0559743439
+        "inference_seconds": 1.0666618999966886,
+        "samples_per_second": 76477.84176059278
       },
       "regions": {
         "1": {
@@ -688,8 +714,8 @@
             "clipped_low": 0,
             "clipped_high": 3682,
             "input_saturation_fraction": 0.00021731883565266006,
-            "inference_seconds": 0.5248036000120919,
-            "samples_per_second": 77606.17495585319
+            "inference_seconds": 0.5186348000133876,
+            "samples_per_second": 78529.24639640203
           },
           "slice_level": {
             "samples": 40728,
@@ -1000,8 +1026,8 @@
             "clipped_low": 0,
             "clipped_high": 53,
             "input_saturation_fraction": 2.606461664358555e-05,
-            "inference_seconds": 0.06311200000345707,
-            "samples_per_second": 77449.61338148452
+            "inference_seconds": 0.0748328999907244,
+            "samples_per_second": 65318.86376989094
           },
           "slice_level": {
             "samples": 4888,
@@ -1312,8 +1338,8 @@
             "clipped_low": 0,
             "clipped_high": 1716,
             "input_saturation_fraction": 0.00011471078976640712,
-            "inference_seconds": 0.4658192999777384,
-            "samples_per_second": 77197.31664557166
+            "inference_seconds": 0.4731941999925766,
+            "samples_per_second": 75994.16899142918
           },
           "slice_level": {
             "samples": 35960,

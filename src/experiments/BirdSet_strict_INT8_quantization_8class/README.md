@@ -5,6 +5,10 @@
 模型；每个模型均重新复测Xeno-canto验证集、共同BirdSet 20-shot held-out和
 完整DB3V。
 
+BirdSet held-out固定为统一协议
+`../BirdSet_common_test_8class/test_protocol.json`：197条长录音、18,265个五秒
+片段、91,325个一秒窗口；三种特征的样本身份完全一致。
+
 ## 严格INT8定义与隔离
 
 全部27个模型均满足：

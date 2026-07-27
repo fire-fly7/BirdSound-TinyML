@@ -21,6 +21,11 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
 
+from birdset_test_protocol import (
+    CANONICAL_REPORT_NAME,
+    canonical_dataset_dir,
+    validate_all_features,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENTS_DIR = REPOSITORY_ROOT / "src" / "experiments"
@@ -104,13 +109,14 @@ def run(command: list[str]) -> None:
 
 
 def train_and_evaluate(args: argparse.Namespace) -> None:
+    validate_all_features(DATASETS_DIR)
     fine_tune_script = EXPERIMENTS_DIR / "fine_tune_birdset.py"
     evaluate_birdset_script = EXPERIMENTS_DIR / "evaluate_birdset_ssw.py"
     evaluate_db3v_script = EXPERIMENTS_DIR / "evaluate_db3v.py"
     for feature in args.features:
         base_model_dir = EXPERIMENTS_DIR / "Feature_comparison_8class" / feature
         xeno_dir = DATASETS_DIR / f"{feature}_dataset_A_8class"
-        common_birdset_heldout = split_root(feature, 20) / "test"
+        common_birdset_heldout = canonical_dataset_dir(DATASETS_DIR, feature)
         full_db3v = DATASETS_DIR / f"{feature}_dataset_DB3V_8class"
         for shots in args.shots:
             support = split_root(feature, shots) / "support"
@@ -127,10 +133,7 @@ def train_and_evaluate(args: argparse.Namespace) -> None:
                     fine_tune_report = (
                         destination / "DS_CNN_Model.birdset_fewshot.json"
                     )
-                    birdset_report = (
-                        destination
-                        / "BirdSet_common_20shot_heldout_evaluation.json"
-                    )
+                    birdset_report = destination / CANONICAL_REPORT_NAME
                     db3v_report = destination / "DB3V_full_evaluation.json"
                     if args.force or not fine_tune_report.exists():
                         run(

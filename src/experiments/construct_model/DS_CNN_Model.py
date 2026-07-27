@@ -1,4 +1,3 @@
-import tensorflow as tf
 from keras import layers, models
 
 def create_model(input_shape, num_classes):

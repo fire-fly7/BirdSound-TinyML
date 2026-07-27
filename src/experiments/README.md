@@ -21,6 +21,8 @@
   和批量 TFLite 推理；
 - `evaluate_int8_experiments.py`：复测全部 FP32 已选中的零样本与小样本链路，
   并生成逐链路量化报告；
+- `birdset_test_protocol.py`：定义并校验统一BirdSet公共test的录音、片段、窗口、
+  特征一致性和样本身份哈希；
 - `evaluate_db3v.py`、`evaluate_birdset_ssw.py`：外部数据集评估入口；
 - `convert.py`：模型转换与部署工件生成入口；
 - `TinyML_model_8class/`：MFCC 兼容基准模型及报告；
@@ -40,9 +42,12 @@
 - `BirdSet_fewshot_ablation_multiseed_8class/`：BirdSet严格四策略的108组模型、
   三域复测、逐seed记录以及36组均值/样本标准差；
 - `INT8_quantization_8class/`：3条零样本和12条旧单种子小样本的严格INT8模型；
-  零样本继续使用，小样本结果作为历史归档；
+  零样本继续使用，小样本结果作为历史归档，15条链路的BirdSet部分均已在公共
+  197条录音test上复测；
 - `BirdSet_strict_INT8_quantization_8class/`：BirdSet严格实验中按三seed平均适配
-  分数选中策略后，对全部选中seed模型执行的严格INT8量化与聚合。
+  分数选中策略后，对全部选中seed模型执行的严格INT8量化与聚合；
+- `BirdSet_common_test_8class/`：当前所有BirdSet横向比较采用的固定样本协议；
+  197条长录音、18,265个五秒片段、91,325个一秒窗口。
 
 正式基准模型仍只由 Xeno-canto 训练和内部验证决定；BirdSet 和 DB3V 的候选基准
 实验只用于方法诊断，不改变两者作为外部测试集与小样本增强集的正式角色。小样本

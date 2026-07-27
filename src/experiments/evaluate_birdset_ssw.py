@@ -14,16 +14,19 @@ import numpy as np
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 import tensorflow as tf
 
+from birdset_test_protocol import (
+    CANONICAL_REPORT_NAME,
+    audit_dataset,
+    canonical_dataset_dir,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATASET_DIR = (
-    REPOSITORY_ROOT
-    / "src"
-    / "dataset_processing"
-    / "output"
-    / "MFCC_dataset_BirdSet_SSW_8class"
+DATA_ROOT = REPOSITORY_ROOT / "src" / "dataset_processing" / "output"
+DEFAULT_DATASET_DIR = canonical_dataset_dir(DATA_ROOT, "MFCC")
+DEFAULT_OUTPUT_NAME = CANONICAL_REPORT_NAME
+DEFAULT_MODEL_DIR = (
+    REPOSITORY_ROOT / "src" / "experiments" / "TinyML_model_8class"
 )
-DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "experiments" / "TinyML_model_8class"
 MODEL_NAMES = ("BC_ResNet", "CNN_Model", "DS_CNN_Model", "MobileNetV2")
 
 
@@ -34,6 +37,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--dataset-dir", type=Path, default=DEFAULT_DATASET_DIR)
     parser.add_argument("--model-dir", type=Path, default=DEFAULT_MODEL_DIR)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--allow-noncanonical-dataset",
+        action="store_true",
+        help=(
+            "Allow an archival or diagnostic BirdSet partition. Current "
+            "cross-chain comparisons must not use this option."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -114,6 +125,10 @@ def main() -> None:
     clip_index = np.load(dataset_dir / "test_clip_index.npy")
     clip_labels = np.load(dataset_dir / "test_clip_multilabel.npy")
     manifest = load_json(dataset_dir / "manifest.json")
+    sample_spec = audit_dataset(
+        dataset_dir,
+        require_canonical=not arguments.allow_noncanonical_dataset,
+    )
     global_singleton_mask = np.asarray(
         [item["is_globally_singleton"] for item in manifest["clips"]], dtype=bool
     )
@@ -133,6 +148,8 @@ def main() -> None:
         "dataset": "BirdSet SSW test_5s",
         "purpose": "Independent multi-label soundscape evaluation only.",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "dataset_dir": sample_spec["dataset_dir"],
+        "sample_specification": sample_spec,
         "label_map": label_map,
         "models": {},
     }
@@ -168,7 +185,7 @@ def main() -> None:
         )
         tf.keras.backend.clear_session()
 
-    output = arguments.output or model_dir / "BirdSet_SSW_evaluation.json"
+    output = arguments.output or model_dir / DEFAULT_OUTPUT_NAME
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Saved report: {output}")
