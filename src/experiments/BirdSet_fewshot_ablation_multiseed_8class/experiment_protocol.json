@@ -1,0 +1,170 @@
+{
+  "experiment": "Strict grouped BirdSet few-shot fine-tuning ablation with multiple seeds",
+  "created_at_utc": "2026-07-26T20:37:46.293954+00:00",
+  "official_sources": {
+    "birdset_dataset": "https://huggingface.co/datasets/DBD-research-group/BirdSet",
+    "birdset_code": "https://github.com/DBD-research-group/BirdSet",
+    "birdset_paper": "https://proceedings.iclr.cc/paper_files/paper/2025/hash/484d254ff80e99d543159440a06db0de-Abstract-Conference.html",
+    "ssw_audio": "https://zenodo.org/records/7079380",
+    "db3v_cross_test": "https://doi.org/10.5281/zenodo.11544734"
+  },
+  "features": [
+    "MFCC",
+    "LogMel",
+    "PCEN"
+  ],
+  "requested_positive_clips_per_class": [
+    5,
+    10,
+    20
+  ],
+  "shot_definition": "Requested positive five-second clips per class while preserving complete original long recordings. Actual support can exceed the request; a rare class with only two available positive clips is never duplicated.",
+  "split_summaries": {
+    "5": {
+      "dataset": "BirdSet SSW",
+      "seed": 42,
+      "split_unit": "original long recording",
+      "requested_shots_per_class": 5,
+      "support_recordings": 10,
+      "support_clips": 684,
+      "heldout_recordings": 201,
+      "heldout_clips": 18994,
+      "support_positive_clips_by_class": [
+        193,
+        92,
+        21,
+        179,
+        10,
+        2,
+        252,
+        37
+      ],
+      "support_shortfall_positive_clips_by_class": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0
+      ],
+      "classes_below_requested_shots": [
+        5
+      ],
+      "note": "A grouped support set can exceed the requested shots because recordings contain many clips."
+    },
+    "10": {
+      "dataset": "BirdSet SSW",
+      "seed": 42,
+      "split_unit": "original long recording",
+      "requested_shots_per_class": 10,
+      "support_recordings": 11,
+      "support_clips": 699,
+      "heldout_recordings": 200,
+      "heldout_clips": 18979,
+      "support_positive_clips_by_class": [
+        197,
+        99,
+        21,
+        183,
+        10,
+        2,
+        252,
+        37
+      ],
+      "support_shortfall_positive_clips_by_class": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        8,
+        0,
+        0
+      ],
+      "classes_below_requested_shots": [
+        5
+      ],
+      "note": "A grouped support set can exceed the requested shots because recordings contain many clips."
+    },
+    "20": {
+      "dataset": "BirdSet SSW",
+      "seed": 42,
+      "split_unit": "original long recording",
+      "requested_shots_per_class": 20,
+      "support_recordings": 14,
+      "support_clips": 1413,
+      "heldout_recordings": 197,
+      "heldout_clips": 18265,
+      "support_positive_clips_by_class": [
+        631,
+        140,
+        21,
+        294,
+        35,
+        2,
+        353,
+        133
+      ],
+      "support_shortfall_positive_clips_by_class": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        18,
+        0,
+        0
+      ],
+      "classes_below_requested_shots": [
+        5
+      ],
+      "note": "A grouped support set can exceed the requested shots because recordings contain many clips."
+    }
+  },
+  "split_integrity": {
+    "feature_split_clip_identity_verified": true,
+    "features_compared": [
+      "MFCC",
+      "LogMel",
+      "PCEN"
+    ],
+    "support_test_recording_overlap_by_shot": {
+      "5": 0,
+      "10": 0,
+      "20": 0
+    },
+    "nested_support_clip_identity_verified": true,
+    "nested_shot_order": [
+      5,
+      10,
+      20
+    ]
+  },
+  "common_birdset_heldout": "The feature-matched 20-shot split test partition is used for every 5/10/20-shot run.",
+  "policies": {
+    "head_only": "Only the final sigmoid Dense layer is trainable.",
+    "bn_head": "All BatchNormalization layers and the final sigmoid Dense layer are trainable.",
+    "bn_head_replay": "BN+Head with a class-balanced Xeno-canto training replay buffer at a 1:1 replay-to-BirdSet-slice ratio.",
+    "full": "Every layer is trainable, including all BatchNormalization layers."
+  },
+  "seeds": [
+    42,
+    123,
+    2026
+  ],
+  "random_seed_scope": "Fixed external support/common-held-out recordings; seed changes the assigned one of the three highest-quality internal grouped validation variants and changes replay sampling, batch order, and TensorFlow stochastic operations.",
+  "selection": "Policy/epoch selection uses support validation clip top-1 any-target accuracy multiplied by capped Xeno-canto validation macro-F1 retention.",
+  "heldout_access_during_training_or_selection": false,
+  "birdset_final_test": "Every run is evaluated after training on the feature-matched common 20-shot BirdSet held-out set. These metrics never select policies.",
+  "db3v_cross_domain_test": "Every run is evaluated after training on full DB3V, which never participates in BirdSet adaptation or policy selection.",
+  "xeno_forgetting_test": "Final Xeno-canto validation macro-F1, absolute change from the base model, and retention ratio are recorded for every run.",
+  "standard_deviation": "Sample standard deviation (statistics.stdev, ddof=1).",
+  "replay_ratio": 1.0,
+  "maximum_epochs": 30,
+  "patience": 6,
+  "batch_size": 32,
+  "runs_expected": 108,
+  "runs_complete": 108
+}

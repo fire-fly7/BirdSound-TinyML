@@ -1,0 +1,202 @@
+{
+  "experiment": "BirdSet SSW grouped 20-shot adaptation from Xeno-canto DS-CNN",
+  "created_at_utc": "2026-07-26T19:49:47.459816+00:00",
+  "heldout_access_during_training": false,
+  "base_model": "src\\experiments\\Feature_comparison_8class\\MFCC\\DS_CNN_Model.h5",
+  "support_dir": "src\\dataset_processing\\output\\MFCC_BirdSet_external_split_20shot_8class\\support",
+  "xeno_validation_dir": "src\\dataset_processing\\output\\MFCC_dataset_A_8class",
+  "label_map": {
+    "Agelaius_phoeniceus": 0,
+    "Cardinalis_cardinalis": 1,
+    "Certhia_americana": 2,
+    "Corvus_brachyrhynchos": 3,
+    "Setophaga_aestiva": 4,
+    "Setophaga_ruticilla": 5,
+    "Spinus_tristis": 6,
+    "Turdus_migratorius": 7
+  },
+  "protocol": {
+    "task": "multi-label soundscape adaptation",
+    "output_activation": "sigmoid",
+    "loss": "binary_crossentropy",
+    "support_original_recordings": 14,
+    "support_clips": 1413,
+    "support_slices": 7065,
+    "requested_shots_per_class": 20,
+    "support_positive_clips_by_class": [
+      631,
+      140,
+      21,
+      294,
+      35,
+      2,
+      353,
+      133
+    ],
+    "support_shortfall_positive_clips_by_class": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      18,
+      0,
+      0
+    ],
+    "selection_train_original_recordings": 11,
+    "selection_validation_original_recordings": 3,
+    "selection_train_clips": 1168,
+    "selection_validation_clips": 245,
+    "selection_validation_recording_names": [
+      "SSW_057_20170325_100012Z",
+      "SSW_190_20170610_140010Z",
+      "SSW_285_20170826_220029Z"
+    ],
+    "selection_validation_variant": 2,
+    "seed": 2026,
+    "selection_validation_supported_classes": [
+      0,
+      1,
+      3,
+      4,
+      6,
+      7
+    ],
+    "policy": "bn_head_replay",
+    "learning_rate": 0.0001,
+    "maximum_selection_epochs": 30,
+    "patience": 6,
+    "selected_epoch": 7,
+    "selection_metric": "BirdSet support validation clip top-1 any-target accuracy multiplied by capped Xeno validation macro-F1 retention",
+    "class_balancing": "Per-clip inverse positive-class-frequency weights, divided across the five slices of each clip.",
+    "final_training": "Reload the original Xeno softmax model, switch the output activation to sigmoid, and train on all 10 support recordings for the selected fixed epoch count.",
+    "trainable_layers": [
+      "batch_normalization",
+      "batch_normalization_1",
+      "batch_normalization_2",
+      "dense_1"
+    ],
+    "trainable_parameters": 1480,
+    "total_parameters": 30056,
+    "batch_normalization_trainable": true,
+    "replay": {
+      "enabled": true,
+      "source": "src\\dataset_processing\\output\\MFCC_dataset_A_8class\\train_data.npy",
+      "source_partition": "Xeno-canto baseline training split",
+      "class_balanced": true,
+      "ratio_to_birdset_support_slices": 1.0,
+      "selection_replay_slices": 5840,
+      "final_replay_slices": 7065,
+      "selection_sampling_seed": 12026,
+      "final_sampling_seed": 22026,
+      "heldout_or_validation_used_for_replay": false
+    }
+  },
+  "baseline_before_selection": {
+    "birdset_support_validation": {
+      "clips": 245,
+      "supported_classes": [
+        0,
+        1,
+        3,
+        4,
+        6,
+        7
+      ],
+      "positive_clips_by_class": [
+        1,
+        86,
+        0,
+        122,
+        7,
+        0,
+        25,
+        8
+      ],
+      "top_1_any_target_accuracy": 0.42448979591836733,
+      "top_3_any_target_accuracy": 0.5346938775510204,
+      "threshold_subset_accuracy": 0.30612244897959184,
+      "threshold_supported_macro_f1": 0.12500000000000003
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.5,
+      "balanced_accuracy": 0.5,
+      "macro_f1": 0.49616642171207415,
+      "top_3_accuracy": 0.7770833333333333
+    }
+  },
+  "selected_split_model": {
+    "birdset_support_validation": {
+      "clips": 245,
+      "supported_classes": [
+        0,
+        1,
+        3,
+        4,
+        6,
+        7
+      ],
+      "positive_clips_by_class": [
+        1,
+        86,
+        0,
+        122,
+        7,
+        0,
+        25,
+        8
+      ],
+      "top_1_any_target_accuracy": 0.40816326530612246,
+      "top_3_any_target_accuracy": 0.5061224489795918,
+      "threshold_subset_accuracy": 0.3224489795918367,
+      "threshold_supported_macro_f1": 0.13101160862354894
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.4875,
+      "balanced_accuracy": 0.48750000000000004,
+      "macro_f1": 0.4847932512197387,
+      "top_3_accuracy": 0.7645833333333333
+    },
+    "xeno_macro_f1_retention": 0.9770779117758692,
+    "adaptation_score": 0.39880731092892624
+  },
+  "final_all_support_model": {
+    "birdset_support_training": {
+      "clips": 1413,
+      "supported_classes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "positive_clips_by_class": [
+        631,
+        140,
+        21,
+        294,
+        35,
+        2,
+        353,
+        133
+      ],
+      "top_1_any_target_accuracy": 0.3878273177636235,
+      "top_3_any_target_accuracy": 0.7020523708421798,
+      "threshold_subset_accuracy": 0.06369426751592357,
+      "threshold_supported_macro_f1": 0.10395118186673184
+    },
+    "xeno_validation": {
+      "recordings": 480,
+      "accuracy": 0.48333333333333334,
+      "balanced_accuracy": 0.48333333333333334,
+      "macro_f1": 0.4807574971670998,
+      "top_3_accuracy": 0.7791666666666667
+    },
+    "xeno_macro_f1_retention": 0.9689440400021343
+  }
+}

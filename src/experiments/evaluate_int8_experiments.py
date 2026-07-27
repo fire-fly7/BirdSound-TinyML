@@ -6,9 +6,11 @@ import argparse
 import csv
 import json
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean, stdev
 from typing import Any
 
 import numpy as np
@@ -62,6 +64,7 @@ class Chain:
     db3v_fp32_report: Path
     xeno_fp32_report: Path
     xeno_fp32_kind: str
+    seed: int | None = None
 
     @property
     def model_path(self) -> Path:
@@ -73,7 +76,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--families",
         nargs="+",
-        choices=("zero_shot", "db3v_fewshot", "birdset_fewshot"),
+        choices=(
+            "zero_shot",
+            "db3v_fewshot",
+            "birdset_fewshot",
+            "birdset_strict_fewshot",
+        ),
         default=("zero_shot", "db3v_fewshot", "birdset_fewshot"),
     )
     parser.add_argument("--chains", nargs="+", help="Optional exact chain IDs.")
@@ -105,6 +113,11 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 def db3v_support_dir(feature: str, shots: int) -> Path:
     suffix = "" if shots == 5 else f"_{shots}shot"
     return DATA_DIR / f"{feature}_DB3V_external_split{suffix}_8class"
+
+
+def birdset_split_dir(feature: str, shots: int) -> Path:
+    suffix = "" if shots == 5 else f"_{shots}shot"
+    return DATA_DIR / f"{feature}_BirdSet_external_split{suffix}_8class"
 
 
 def build_chains() -> list[Chain]:
@@ -221,6 +234,67 @@ def build_chains() -> list[Chain]:
                 xeno_fp32_kind="birdset_fewshot",
             )
         )
+
+    strict_root = EXPERIMENTS_DIR / "BirdSet_fewshot_ablation_multiseed_8class"
+    strict_aggregate = strict_root / "aggregate.csv"
+    strict_runs = strict_root / "runs.csv"
+    if strict_aggregate.exists() and strict_runs.exists():
+        selected_policies = {
+            (row["feature"], int(row["requested_shots"])): row["policy"]
+            for row in read_csv(strict_aggregate)
+            if row["selected_by_mean_adaptation_score"].lower() == "true"
+        }
+        for row in read_csv(strict_runs):
+            feature = row["feature"]
+            shots = int(row["requested_shots"])
+            policy = row["policy"]
+            seed = int(row["seed"])
+            if selected_policies.get((feature, shots)) != policy:
+                continue
+            model_dir = (
+                strict_root
+                / feature
+                / f"{shots}shot"
+                / policy
+                / f"seed_{seed}"
+            )
+            chains.append(
+                Chain(
+                    chain_id=(
+                        f"birdset_strict_{shots}shot_{feature.lower()}_"
+                        f"{policy}_seed_{seed}"
+                    ),
+                    family="birdset_strict_fewshot",
+                    feature=feature,
+                    requested_shots=shots,
+                    policy=policy,
+                    seed=seed,
+                    model_dir=model_dir,
+                    representative_sources=(
+                        DATA_DIR
+                        / f"{feature}_dataset_A_8class"
+                        / "train_data.npy",
+                        birdset_split_dir(feature, shots)
+                        / "support"
+                        / "support_data.npy",
+                    ),
+                    birdset_scope="common_20shot_heldout_197_recordings",
+                    birdset_dataset_dir=birdset_split_dir(feature, 20) / "test",
+                    birdset_fp32_report=(
+                        model_dir
+                        / "BirdSet_common_20shot_heldout_evaluation.json"
+                    ),
+                    db3v_scope="full_10658_recordings",
+                    db3v_dataset_dir=(
+                        DATA_DIR / f"{feature}_dataset_DB3V_8class"
+                    ),
+                    db3v_fp32_report=model_dir / "DB3V_full_evaluation.json",
+                    xeno_fp32_report=(
+                        model_dir / f"{MODEL_NAME}.birdset_fewshot.json"
+                    ),
+                    xeno_fp32_kind="birdset_fewshot",
+                )
+            )
     return chains
 
 
@@ -454,6 +528,7 @@ def summary_row(report: dict[str, Any]) -> dict[str, Any]:
         "feature": chain["feature"],
         "requested_shots": chain["requested_shots"],
         "policy": chain["policy"],
+        "seed": chain.get("seed"),
         "output_activation": quantization["output_activation"],
         "strict_int8": quantization["strict_int8"],
         "floating_point_tensor_count": quantization[
@@ -533,6 +608,81 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_multiseed_aggregate(
+    path: Path,
+    rows: list[dict[str, Any]],
+) -> None:
+    strict_rows = [
+        row for row in rows if row["family"] == "birdset_strict_fewshot"
+    ]
+    if not strict_rows:
+        return
+    groups: dict[tuple[str, int, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in strict_rows:
+        groups[
+            (
+                str(row["feature"]),
+                int(row["requested_shots"]),
+                str(row["policy"]),
+            )
+        ].append(row)
+    metrics = (
+        "tflite_bytes",
+        "xeno_fp32_macro_f1",
+        "xeno_int8_macro_f1",
+        "xeno_macro_f1_delta",
+        "xeno_macro_f1_retention",
+        "birdset_fp32_top1",
+        "birdset_int8_top1",
+        "birdset_top1_delta",
+        "birdset_fp32_top3",
+        "birdset_int8_top3",
+        "birdset_top3_delta",
+        "birdset_fp32_singleton_macro_f1",
+        "birdset_int8_singleton_macro_f1",
+        "birdset_singleton_macro_f1_delta",
+        "db3v_fp32_accuracy",
+        "db3v_int8_accuracy",
+        "db3v_accuracy_delta",
+        "db3v_fp32_balanced_accuracy",
+        "db3v_int8_balanced_accuracy",
+        "db3v_balanced_accuracy_delta",
+        "db3v_fp32_macro_f1",
+        "db3v_int8_macro_f1",
+        "db3v_macro_f1_delta",
+        "db3v_macro_f1_retention",
+        "db3v_fp32_top3",
+        "db3v_int8_top3",
+        "db3v_top3_delta",
+    )
+    aggregate_rows: list[dict[str, Any]] = []
+    for (feature, shots, policy), group in sorted(groups.items()):
+        aggregate: dict[str, Any] = {
+            "feature": feature,
+            "requested_shots": shots,
+            "policy": policy,
+            "n_seeds": len(group),
+            "expected_seeds": 3,
+            "complete": len(group) == 3,
+            "seeds": "|".join(
+                str(row["seed"])
+                for row in sorted(group, key=lambda item: int(item["seed"]))
+            ),
+            "strict_int8": all(bool(row["strict_int8"]) for row in group),
+            "floating_point_tensor_count": max(
+                int(row["floating_point_tensor_count"]) for row in group
+            ),
+        }
+        for metric in metrics:
+            values = [float(row[metric]) for row in group]
+            aggregate[f"{metric}_mean"] = mean(values)
+            aggregate[f"{metric}_std"] = (
+                stdev(values) if len(values) > 1 else 0.0
+            )
+        aggregate_rows.append(aggregate)
+    write_summary(path, aggregate_rows)
 
 
 def evaluate_chain(
@@ -627,6 +777,7 @@ def evaluate_chain(
             "feature": chain.feature,
             "requested_shots": chain.requested_shots,
             "policy": chain.policy,
+            "seed": chain.seed,
             "model_path": relative(chain.model_path),
             "birdset_scope": chain.birdset_scope,
             "db3v_scope": chain.db3v_scope,
@@ -702,6 +853,7 @@ def main() -> None:
         )
     rows = [summary_row(report) for report in reports]
     write_summary(output_dir / "summary.csv", rows)
+    write_multiseed_aggregate(output_dir / "aggregate.csv", rows)
     protocol = {
         "experiment": "Strict INT8 evaluation of selected zero-shot and few-shot chains",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -724,6 +876,10 @@ def main() -> None:
             "birdset_fewshot": (
                 "Equal requested sample allocation between Xeno-canto training "
                 "features and isolated BirdSet support."
+            ),
+            "birdset_strict_fewshot": (
+                "Equal requested sample allocation between Xeno-canto training "
+                "features and the matching grouped 5/10/20-shot BirdSet support."
             ),
             "heldout_used_for_calibration": False,
         },

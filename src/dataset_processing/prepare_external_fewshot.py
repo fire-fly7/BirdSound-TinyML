@@ -114,6 +114,12 @@ def split_birdset(source: Path, output: Path, shots: int, seed: int) -> None:
         "heldout_recordings": len(groups) - len(support_groups),
         "heldout_clips": len(test_clips),
         "support_positive_clips_by_class": positives.tolist(),
+        "support_shortfall_positive_clips_by_class": np.maximum(
+            shots - positives, 0
+        ).tolist(),
+        "classes_below_requested_shots": np.flatnonzero(positives < shots)
+        .astype(int)
+        .tolist(),
         "note": "A grouped support set can exceed the requested shots because recordings contain many clips.",
     }
     write_json(output / "split_manifest.json", audit)

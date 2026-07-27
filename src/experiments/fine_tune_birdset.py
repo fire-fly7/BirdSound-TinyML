@@ -26,7 +26,16 @@ from tensorflow.keras.callbacks import Callback, EarlyStopping
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RECORDING_PATTERN = re.compile(r"^(.*)_\d+_\d+\.ogg$")
-POLICIES = ("head", "last_block", "all")
+POLICIES = (
+    "head",
+    "last_block",
+    "all",
+    "head_only",
+    "bn_head",
+    "bn_head_replay",
+    "full",
+)
+REPLAY_POLICIES = ("bn_head_replay",)
 
 
 def arguments() -> argparse.Namespace:
@@ -42,7 +51,29 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=6)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--validation-recordings", type=int, default=3)
+    parser.add_argument(
+        "--validation-variant",
+        type=int,
+        help=(
+            "Optional zero-based choice among the three highest-quality grouped "
+            "validation candidates. Used by the multi-seed runner."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--replay-ratio",
+        type=float,
+        default=1.0,
+        help=(
+            "Number of class-balanced Xeno-canto training slices per BirdSet "
+            "support slice. Used only by bn_head_replay."
+        ),
+    )
+    parser.add_argument(
+        "--print-report",
+        action="store_true",
+        help="Print the complete JSON report instead of a concise completion summary.",
+    )
     return parser.parse_args()
 
 
@@ -181,13 +212,14 @@ def choose_validation_groups(
     groups: dict[str, list[int]],
     clip_labels: np.ndarray,
     count: int,
+    seed: int,
+    variant: int | None = None,
 ) -> tuple[list[str], np.ndarray, np.ndarray]:
     names = sorted(groups)
     if count < 1 or count >= len(names):
         raise ValueError("--validation-recordings must leave at least one train group.")
     target_clips = round(len(clip_labels) * 0.2)
-    best_score: tuple[int, int] | None = None
-    best_names: tuple[str, ...] | None = None
+    candidates: list[tuple[tuple[str, ...], int, int]] = []
     for candidate in combinations(names, count):
         validation_clips = np.asarray(
             sorted(index for name in candidate for index in groups[name]),
@@ -202,15 +234,31 @@ def choose_validation_groups(
         supported_validation_classes = int(
             np.sum(clip_labels[validation_clips].sum(axis=0) > 0)
         )
-        score = (
-            supported_validation_classes,
-            -abs(len(validation_clips) - target_clips),
+        candidates.append(
+            (
+                candidate,
+                supported_validation_classes,
+                abs(len(validation_clips) - target_clips),
+            )
         )
-        if best_score is None or score > best_score:
-            best_score = score
-            best_names = candidate
-    if best_names is None:
+    if not candidates:
         raise ValueError("No grouped validation split preserves all train classes.")
+    best_supported = max(item[1] for item in candidates)
+    coverage_candidates = [
+        item for item in candidates if item[1] == best_supported
+    ]
+    eligible = sorted(
+        coverage_candidates,
+        key=lambda item: (item[2], item[0]),
+    )[:3]
+    if variant is None:
+        random = np.random.default_rng(seed)
+        selected_index = int(random.integers(len(eligible)))
+    else:
+        if variant < 0:
+            raise ValueError("--validation-variant must be nonnegative.")
+        selected_index = variant % len(eligible)
+    best_names = eligible[selected_index][0]
     validation = np.asarray(
         sorted(index for name in best_names for index in groups[name]), dtype=np.int64
     )
@@ -259,6 +307,23 @@ def balanced_multilabel_slice_weights(
 def configure_trainable(model: tf.keras.Model, policy: str) -> list[str]:
     for layer in model.layers:
         layer.trainable = False
+    if policy == "head_only":
+        model.layers[-1].trainable = True
+        if not isinstance(model.layers[-1], tf.keras.layers.Dense):
+            raise ValueError("The final model layer must be the classification Dense layer.")
+        return [model.layers[-1].name]
+    if policy in {"bn_head", "bn_head_replay"}:
+        for layer in model.layers:
+            if isinstance(layer, tf.keras.layers.BatchNormalization):
+                layer.trainable = True
+        model.layers[-1].trainable = True
+        if not isinstance(model.layers[-1], tf.keras.layers.Dense):
+            raise ValueError("The final model layer must be the classification Dense layer.")
+        return [layer.name for layer in model.layers if layer.trainable]
+    if policy == "full":
+        for layer in model.layers:
+            layer.trainable = True
+        return [layer.name for layer in model.layers if layer.trainable]
     if policy == "head":
         dense_indices = [
             index
@@ -279,6 +344,85 @@ def configure_trainable(model: tf.keras.Model, policy: str) -> list[str]:
         if not isinstance(layer, tf.keras.layers.BatchNormalization):
             layer.trainable = True
     return [layer.name for layer in model.layers if layer.trainable]
+
+
+def balanced_replay_rows(
+    labels: np.ndarray,
+    count: int,
+    num_classes: int,
+    seed: int,
+) -> np.ndarray:
+    """Select a deterministic approximately class-balanced Xeno replay buffer."""
+    if count < 1:
+        return np.empty(0, dtype=np.int64)
+    random = np.random.default_rng(seed)
+    per_class = count // num_classes
+    remainder = count % num_classes
+    selected: list[np.ndarray] = []
+    for class_id in range(num_classes):
+        candidates = np.flatnonzero(labels == class_id)
+        requested = per_class + (1 if class_id < remainder else 0)
+        if requested > len(candidates):
+            raise ValueError(
+                f"Xeno class {class_id} has {len(candidates)} slices, fewer than "
+                f"the requested replay count {requested}."
+            )
+        selected.append(random.choice(candidates, size=requested, replace=False))
+    rows = np.concatenate(selected)
+    random.shuffle(rows)
+    return rows.astype(np.int64)
+
+
+def replay_weights(
+    replay_labels: np.ndarray,
+    target_mean: float,
+    num_classes: int,
+) -> np.ndarray:
+    counts = np.bincount(replay_labels, minlength=num_classes).astype(np.float64)
+    if np.any(counts == 0):
+        raise ValueError("Replay sampling must include every class.")
+    weights = 1.0 / counts[replay_labels]
+    weights *= target_mean / weights.mean()
+    return weights.astype(np.float32)
+
+
+def mix_with_replay(
+    support_data: np.ndarray,
+    support_labels: np.ndarray,
+    support_weights: np.ndarray,
+    xeno_train_data: np.ndarray,
+    xeno_train_labels: np.ndarray,
+    replay_ratio: float,
+    num_classes: int,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    replay_count = int(round(len(support_labels) * replay_ratio))
+    rows = balanced_replay_rows(
+        xeno_train_labels,
+        replay_count,
+        num_classes,
+        seed,
+    )
+    replay_data = np.asarray(xeno_train_data[rows], dtype=np.float32)[
+        ..., np.newaxis
+    ]
+    replay_targets = np.eye(num_classes, dtype=np.float32)[xeno_train_labels[rows]]
+    weights = replay_weights(
+        xeno_train_labels[rows],
+        float(support_weights.mean()),
+        num_classes,
+    )
+    mixed_data = np.concatenate((support_data, replay_data))
+    mixed_labels = np.concatenate((support_labels, replay_targets))
+    mixed_weights = np.concatenate((support_weights, weights))
+    random = np.random.default_rng(seed + 1)
+    order = random.permutation(len(mixed_labels))
+    return (
+        mixed_data[order],
+        mixed_labels[order],
+        mixed_weights[order],
+        rows,
+    )
 
 
 def compile_model(model: tf.keras.Model, learning_rate: float) -> None:
@@ -376,8 +520,14 @@ def main() -> None:
         or args.epochs < 1
         or args.patience < 1
         or args.batch_size < 1
+        or args.validation_recordings < 1
+        or args.replay_ratio < 0
     ):
-        raise ValueError("Learning rate and count arguments must be positive.")
+        raise ValueError(
+            "Learning rate/count arguments must be positive and replay ratio nonnegative."
+        )
+    if args.policy in REPLAY_POLICIES and args.replay_ratio <= 0:
+        raise ValueError("Replay policies require --replay-ratio greater than zero.")
     tf.keras.utils.set_random_seed(args.seed)
 
     model_path = args.base_model_dir / f"{args.model_name}.h5"
@@ -396,6 +546,8 @@ def main() -> None:
         args.support_dir / "support_clip_multilabel.npy"
     ).astype(np.float32)
     manifest = load_json(args.support_dir / "manifest.json")
+    split_manifest = load_json(args.support_dir.parent / "split_manifest.json")
+    requested_shots = int(split_manifest["requested_shots_per_class"])
     clips = manifest["clips"]
     if len(clips) != len(clip_labels):
         raise ValueError("Support manifest and clip labels differ.")
@@ -408,6 +560,8 @@ def main() -> None:
         groups,
         clip_labels,
         args.validation_recordings,
+        args.seed,
+        args.validation_variant,
     )
     all_clips = np.arange(len(clip_labels), dtype=np.int64)
     train_data, train_slice_labels, train_index, train_clip_labels = subset(
@@ -437,6 +591,55 @@ def main() -> None:
         train_clip_labels, train_index
     )
     full_weights = balanced_multilabel_slice_weights(full_clip_labels, full_index)
+    selection_fit_data = train_data
+    selection_fit_labels = train_slice_labels
+    selection_fit_weights = train_weights
+    final_fit_data = full_data
+    final_fit_labels = full_slice_labels
+    final_fit_weights = full_weights
+    selection_replay_rows = np.empty(0, dtype=np.int64)
+    final_replay_rows = np.empty(0, dtype=np.int64)
+    if args.policy in REPLAY_POLICIES:
+        xeno_train_data = np.load(
+            args.xeno_dataset_dir / "train_data.npy",
+            mmap_mode="r",
+        )
+        xeno_train_labels = np.load(
+            args.xeno_dataset_dir / "train_label.npy",
+            mmap_mode="r",
+        ).astype(np.int64)
+        if tuple(xeno_train_data.shape[1:]) != tuple(features.shape[1:]):
+            raise ValueError("Xeno replay and BirdSet support feature shapes differ.")
+        (
+            selection_fit_data,
+            selection_fit_labels,
+            selection_fit_weights,
+            selection_replay_rows,
+        ) = mix_with_replay(
+            train_data,
+            train_slice_labels,
+            train_weights,
+            xeno_train_data,
+            xeno_train_labels,
+            args.replay_ratio,
+            num_classes,
+            args.seed + 10_000,
+        )
+        (
+            final_fit_data,
+            final_fit_labels,
+            final_fit_weights,
+            final_replay_rows,
+        ) = mix_with_replay(
+            full_data,
+            full_slice_labels,
+            full_weights,
+            xeno_train_data,
+            xeno_train_labels,
+            args.replay_ratio,
+            num_classes,
+            args.seed + 20_000,
+        )
 
     xeno_data = np.load(args.xeno_dataset_dir / "validation_data.npy").astype(
         np.float32
@@ -494,9 +697,9 @@ def main() -> None:
         restore_best_weights=True,
     )
     selection_history = selection_model.fit(
-        train_data,
-        train_slice_labels,
-        sample_weight=train_weights,
+        selection_fit_data,
+        selection_fit_labels,
+        sample_weight=selection_fit_weights,
         batch_size=args.batch_size,
         epochs=args.epochs,
         validation_data=(validation_data, validation_slice_labels),
@@ -531,9 +734,9 @@ def main() -> None:
     configure_trainable(final_model, args.policy)
     compile_model(final_model, args.learning_rate)
     final_history = final_model.fit(
-        full_data,
-        full_slice_labels,
-        sample_weight=full_weights,
+        final_fit_data,
+        final_fit_labels,
+        sample_weight=final_fit_weights,
         batch_size=args.batch_size,
         epochs=best_epoch,
         verbose=2,
@@ -568,7 +771,10 @@ def main() -> None:
         encoding="utf-8",
     )
     report = {
-        "experiment": "BirdSet SSW grouped five-shot adaptation from Xeno-canto DS-CNN",
+        "experiment": (
+            f"BirdSet SSW grouped {requested_shots}-shot adaptation from "
+            "Xeno-canto DS-CNN"
+        ),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "heldout_access_during_training": False,
         "base_model": relative_path(model_path),
@@ -582,12 +788,29 @@ def main() -> None:
             "support_original_recordings": len(groups),
             "support_clips": len(clip_labels),
             "support_slices": len(features),
+            "requested_shots_per_class": requested_shots,
+            "support_positive_clips_by_class": split_manifest[
+                "support_positive_clips_by_class"
+            ],
+            "support_shortfall_positive_clips_by_class": split_manifest.get(
+                "support_shortfall_positive_clips_by_class",
+                np.maximum(
+                    requested_shots
+                    - np.asarray(
+                        split_manifest["support_positive_clips_by_class"],
+                        dtype=np.int64,
+                    ),
+                    0,
+                ).tolist(),
+            ),
             "selection_train_original_recordings": len(groups)
             - len(validation_names),
             "selection_validation_original_recordings": len(validation_names),
             "selection_train_clips": len(train_clips),
             "selection_validation_clips": len(validation_clips),
             "selection_validation_recording_names": validation_names,
+            "selection_validation_variant": args.validation_variant,
+            "seed": args.seed,
             "selection_validation_supported_classes": selected_birdset[
                 "supported_classes"
             ],
@@ -612,6 +835,37 @@ def main() -> None:
             "trainable_layers": trainable_layers,
             "trainable_parameters": trainable_parameters,
             "total_parameters": total_parameters,
+            "batch_normalization_trainable": any(
+                isinstance(layer, tf.keras.layers.BatchNormalization)
+                and layer.trainable
+                for layer in final_model.layers
+            ),
+            "replay": {
+                "enabled": args.policy in REPLAY_POLICIES,
+                "source": (
+                    relative_path(args.xeno_dataset_dir / "train_data.npy")
+                    if args.policy in REPLAY_POLICIES
+                    else None
+                ),
+                "source_partition": (
+                    "Xeno-canto baseline training split"
+                    if args.policy in REPLAY_POLICIES
+                    else None
+                ),
+                "class_balanced": args.policy in REPLAY_POLICIES,
+                "ratio_to_birdset_support_slices": (
+                    args.replay_ratio if args.policy in REPLAY_POLICIES else 0.0
+                ),
+                "selection_replay_slices": len(selection_replay_rows),
+                "final_replay_slices": len(final_replay_rows),
+                "selection_sampling_seed": (
+                    args.seed + 10_000 if args.policy in REPLAY_POLICIES else None
+                ),
+                "final_sampling_seed": (
+                    args.seed + 20_000 if args.policy in REPLAY_POLICIES else None
+                ),
+                "heldout_or_validation_used_for_replay": False,
+            },
         },
         "baseline_before_selection": {
             "birdset_support_validation": baseline_birdset,
@@ -634,7 +888,26 @@ def main() -> None:
     (args.output_dir / f"{args.model_name}.birdset_fewshot.json").write_text(
         json.dumps(report, indent=2), encoding="utf-8"
     )
-    print(json.dumps(report, indent=2))
+    if args.print_report:
+        print(json.dumps(report, indent=2))
+    else:
+        print(
+            json.dumps(
+                {
+                    "report": relative_path(
+                        args.output_dir
+                        / f"{args.model_name}.birdset_fewshot.json"
+                    ),
+                    "requested_shots": requested_shots,
+                    "policy": args.policy,
+                    "seed": args.seed,
+                    "selected_epoch": best_epoch,
+                    "selection_adaptation_score": selected_score,
+                    "final_xeno_macro_f1": final_xeno["macro_f1"],
+                },
+                indent=2,
+            )
+        )
 
 
 if __name__ == "__main__":
