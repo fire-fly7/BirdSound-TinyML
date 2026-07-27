@@ -1,6 +1,6 @@
 {
   "experiment": "Strict INT8 evaluation of selected zero-shot and few-shot chains",
-  "created_at_utc": "2026-07-27T06:53:27.622801+00:00",
+  "created_at_utc": "2026-07-27T07:46:25.856949+00:00",
   "selection_rule": "Quantize only FP32-selected chains. INT8 held-out results never select features, policies, shots, epochs, thresholds, or calibration sources.",
   "strict_int8_definition": "TFLITE_BUILTINS_INT8 only, int8 input and output, no floating-point tensors, and no QUANTIZE/DEQUANTIZE graph operators. Int32 bias and accumulators are expected integer-kernel behavior.",
   "representative_samples": 256,
@@ -15,6 +15,111 @@
   "batch_size": 128,
   "num_threads": 4,
   "tensorflow_version": "2.19.0",
+  "birdset_test_protocol": {
+    "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+    "scope": "common_20shot_heldout_197_recordings",
+    "status": "validated",
+    "selection_reason": "This is the largest fixed BirdSet SSW partition that excludes all recordings used by the nested grouped 5/10/20-shot support sets.",
+    "sample_specification": {
+      "dataset": "BirdSet SSW test_5s",
+      "source_split": "SSW test_5s shards 1-4",
+      "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+      "split_unit": "original long recording",
+      "split_seed": 42,
+      "maximum_support_scale_excluded": 20,
+      "recordings": 197,
+      "clips_5s": 18265,
+      "slices_1s": 91325,
+      "slices_per_clip": 5,
+      "sample_rate_hz": 16000,
+      "classes": 8,
+      "globally_singleton_clips": 9626,
+      "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+      "support_test_recording_overlap": 0,
+      "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class."
+    },
+    "feature_variants": {
+      "MFCC": {
+        "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+        "scope": "common_20shot_heldout_197_recordings",
+        "dataset": "BirdSet SSW test_5s",
+        "source_split": "SSW test_5s shards 1-4",
+        "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+        "split_unit": "original long recording",
+        "split_seed": 42,
+        "maximum_support_scale_excluded": 20,
+        "recordings": 197,
+        "clips_5s": 18265,
+        "slices_1s": 91325,
+        "slices_per_clip": 5,
+        "sample_rate_hz": 16000,
+        "feature_type": "mfcc",
+        "feature_shape": [
+          32,
+          13
+        ],
+        "classes": 8,
+        "globally_singleton_clips": 9626,
+        "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+        "dataset_dir": "src\\dataset_processing\\output\\MFCC_BirdSet_external_split_20shot_8class\\test",
+        "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
+        "support_test_recording_overlap": 0
+      },
+      "LogMel": {
+        "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+        "scope": "common_20shot_heldout_197_recordings",
+        "dataset": "BirdSet SSW test_5s",
+        "source_split": "SSW test_5s shards 1-4",
+        "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+        "split_unit": "original long recording",
+        "split_seed": 42,
+        "maximum_support_scale_excluded": 20,
+        "recordings": 197,
+        "clips_5s": 18265,
+        "slices_1s": 91325,
+        "slices_per_clip": 5,
+        "sample_rate_hz": 16000,
+        "feature_type": "logmel",
+        "feature_shape": [
+          32,
+          40
+        ],
+        "classes": 8,
+        "globally_singleton_clips": 9626,
+        "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+        "dataset_dir": "src\\dataset_processing\\output\\LogMel_BirdSet_external_split_20shot_8class\\test",
+        "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
+        "support_test_recording_overlap": 0
+      },
+      "PCEN": {
+        "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+        "scope": "common_20shot_heldout_197_recordings",
+        "dataset": "BirdSet SSW test_5s",
+        "source_split": "SSW test_5s shards 1-4",
+        "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+        "split_unit": "original long recording",
+        "split_seed": 42,
+        "maximum_support_scale_excluded": 20,
+        "recordings": 197,
+        "clips_5s": 18265,
+        "slices_1s": 91325,
+        "slices_per_clip": 5,
+        "sample_rate_hz": 16000,
+        "feature_type": "pcen",
+        "feature_shape": [
+          32,
+          40
+        ],
+        "classes": 8,
+        "globally_singleton_clips": 9626,
+        "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+        "dataset_dir": "src\\dataset_processing\\output\\PCEN_BirdSet_external_split_20shot_8class\\test",
+        "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
+        "support_test_recording_overlap": 0
+      }
+    },
+    "comparison_rule": "Only BirdSet metrics produced on this protocol may appear in the current cross-chain ranking. Full-211, 5-shot-heldout-201, and 10-shot-heldout-200 reports are historical diagnostics."
+  },
   "chains": [
     {
       "chain_id": "db3v_strict_5shot_mfcc_head_only_seed_42",
@@ -24,7 +129,7 @@
       "policy": "head_only",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\5shot\\head_only\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -35,7 +140,7 @@
       "policy": "head_only",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\5shot\\head_only\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -46,7 +151,7 @@
       "policy": "head_only",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\5shot\\head_only\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -57,7 +162,7 @@
       "policy": "head_only",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\10shot\\head_only\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -68,7 +173,7 @@
       "policy": "head_only",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\10shot\\head_only\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -79,7 +184,7 @@
       "policy": "head_only",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\10shot\\head_only\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -90,7 +195,7 @@
       "policy": "bn_head_replay",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -101,7 +206,7 @@
       "policy": "bn_head_replay",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -112,7 +217,7 @@
       "policy": "bn_head_replay",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\MFCC\\20shot\\bn_head_replay\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -123,7 +228,7 @@
       "policy": "head_only",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\5shot\\head_only\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -134,7 +239,7 @@
       "policy": "head_only",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\5shot\\head_only\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -145,7 +250,7 @@
       "policy": "head_only",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\5shot\\head_only\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -156,7 +261,7 @@
       "policy": "head_only",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\10shot\\head_only\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -167,7 +272,7 @@
       "policy": "head_only",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\10shot\\head_only\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -178,7 +283,7 @@
       "policy": "head_only",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\10shot\\head_only\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -189,7 +294,7 @@
       "policy": "bn_head_replay",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\20shot\\bn_head_replay\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -200,7 +305,7 @@
       "policy": "bn_head_replay",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\20shot\\bn_head_replay\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -211,7 +316,7 @@
       "policy": "bn_head_replay",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\LogMel\\20shot\\bn_head_replay\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -222,7 +327,7 @@
       "policy": "bn_head_replay",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\5shot\\bn_head_replay\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -233,7 +338,7 @@
       "policy": "bn_head_replay",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\5shot\\bn_head_replay\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -244,7 +349,7 @@
       "policy": "bn_head_replay",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\5shot\\bn_head_replay\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -255,7 +360,7 @@
       "policy": "head_only",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\10shot\\head_only\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -266,7 +371,7 @@
       "policy": "head_only",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\10shot\\head_only\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -277,7 +382,7 @@
       "policy": "head_only",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\10shot\\head_only\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -288,7 +393,7 @@
       "policy": "full",
       "seed": 42,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\20shot\\full\\seed_42\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -299,7 +404,7 @@
       "policy": "full",
       "seed": 123,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\20shot\\full\\seed_123\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     },
     {
@@ -310,7 +415,7 @@
       "policy": "full",
       "seed": 2026,
       "model_path": "src\\experiments\\DB3V_fewshot_ablation_multiseed_8class\\PCEN\\20shot\\full\\seed_2026\\DS_CNN_Model.h5",
-      "birdset_scope": "full_211_recordings",
+      "birdset_scope": "common_20shot_heldout_197_recordings",
       "db3v_scope": "common_20shot_heldout_10197_recordings"
     }
   ]

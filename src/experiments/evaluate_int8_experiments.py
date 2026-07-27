@@ -18,9 +18,17 @@ import numpy as np
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 import tensorflow as tf
 
+from birdset_test_protocol import (
+    CANONICAL_REPORT_NAME,
+    CANONICAL_SCOPE,
+    EXPECTED_CLIPS,
+    EXPECTED_SLICES,
+    audit_dataset,
+    canonical_dataset_dir,
+    validate_all_features,
+)
 from evaluate_birdset_ssw import (
     multilabel_metrics,
-    names_for,
     singleton_metrics,
 )
 from evaluate_db3v import (
@@ -120,6 +128,10 @@ def birdset_split_dir(feature: str, shots: int) -> Path:
     return DATA_DIR / f"{feature}_BirdSet_external_split{suffix}_8class"
 
 
+def birdset_test_dir(feature: str) -> Path:
+    return canonical_dataset_dir(DATA_DIR, feature)
+
+
 def build_chains() -> list[Chain]:
     chains: list[Chain] = []
     for feature in FEATURES:
@@ -135,13 +147,9 @@ def build_chains() -> list[Chain]:
                 representative_sources=(
                     DATA_DIR / f"{feature}_dataset_A_8class" / "train_data.npy",
                 ),
-                birdset_scope="heldout_201_recordings",
-                birdset_dataset_dir=(
-                    DATA_DIR / f"{feature}_BirdSet_external_split_8class" / "test"
-                ),
-                birdset_fp32_report=(
-                    model_dir / "BirdSet_SSW_heldout_evaluation.json"
-                ),
+                birdset_scope=CANONICAL_SCOPE,
+                birdset_dataset_dir=birdset_test_dir(feature),
+                birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
                 db3v_scope="full_10658_recordings",
                 db3v_dataset_dir=DATA_DIR / f"{feature}_dataset_DB3V_8class",
                 db3v_fp32_report=model_dir / "DB3V_evaluation.json",
@@ -180,10 +188,9 @@ def build_chains() -> list[Chain]:
                     DATA_DIR / f"{feature}_dataset_A_8class" / "train_data.npy",
                     db3v_support_dir(feature, shots) / "support_data.npy",
                 ),
-                birdset_scope="full_211_recordings",
-                birdset_dataset_dir=DATA_DIR
-                / f"{feature}_dataset_BirdSet_SSW_8class",
-                birdset_fp32_report=model_dir / "BirdSet_SSW_full_evaluation.json",
+                birdset_scope=CANONICAL_SCOPE,
+                birdset_dataset_dir=birdset_test_dir(feature),
+                birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
                 db3v_scope="common_20shot_heldout_10197_recordings",
                 db3v_dataset_dir=(
                     DATA_DIR / f"{feature}_DB3V_external_split_20shot_8class"
@@ -218,13 +225,9 @@ def build_chains() -> list[Chain]:
                     / "support"
                     / "support_data.npy",
                 ),
-                birdset_scope="heldout_201_recordings",
-                birdset_dataset_dir=(
-                    DATA_DIR / f"{feature}_BirdSet_external_split_8class" / "test"
-                ),
-                birdset_fp32_report=(
-                    model_dir / "BirdSet_SSW_heldout_evaluation.json"
-                ),
+                birdset_scope=CANONICAL_SCOPE,
+                birdset_dataset_dir=birdset_test_dir(feature),
+                birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
                 db3v_scope="full_10658_recordings",
                 db3v_dataset_dir=DATA_DIR / f"{feature}_dataset_DB3V_8class",
                 db3v_fp32_report=model_dir / "DB3V_full_evaluation.json",
@@ -278,12 +281,9 @@ def build_chains() -> list[Chain]:
                         / "support"
                         / "support_data.npy",
                     ),
-                    birdset_scope="common_20shot_heldout_197_recordings",
-                    birdset_dataset_dir=birdset_split_dir(feature, 20) / "test",
-                    birdset_fp32_report=(
-                        model_dir
-                        / "BirdSet_common_20shot_heldout_evaluation.json"
-                    ),
+                    birdset_scope=CANONICAL_SCOPE,
+                    birdset_dataset_dir=birdset_test_dir(feature),
+                    birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
                     db3v_scope="full_10658_recordings",
                     db3v_dataset_dir=(
                         DATA_DIR / f"{feature}_dataset_DB3V_8class"
@@ -339,13 +339,9 @@ def build_chains() -> list[Chain]:
                         / "train_data.npy",
                         db3v_support_dir(feature, shots) / "support_data.npy",
                     ),
-                    birdset_scope="full_211_recordings",
-                    birdset_dataset_dir=(
-                        DATA_DIR / f"{feature}_dataset_BirdSet_SSW_8class"
-                    ),
-                    birdset_fp32_report=(
-                        model_dir / "BirdSet_SSW_full_evaluation.json"
-                    ),
+                    birdset_scope=CANONICAL_SCOPE,
+                    birdset_dataset_dir=birdset_test_dir(feature),
+                    birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
                     db3v_scope="common_20shot_heldout_10197_recordings",
                     db3v_dataset_dir=(
                         DATA_DIR
@@ -416,6 +412,7 @@ def evaluate_birdset(
     clip_index = np.load(dataset_dir / "test_clip_index.npy").astype(np.int64)
     clip_labels = np.load(dataset_dir / "test_clip_multilabel.npy")
     manifest = load_json(dataset_dir / "manifest.json")
+    sample_spec = audit_dataset(dataset_dir, require_canonical=True)
     global_singleton = np.asarray(
         [item["is_globally_singleton"] for item in manifest["clips"]], dtype=bool
     )
@@ -428,6 +425,7 @@ def evaluate_birdset(
     clip_probabilities /= clip_counts[:, np.newaxis]
     return {
         "dataset_dir": relative(dataset_dir),
+        "sample_specification": sample_spec,
         "inference": inference,
         "slice_level": multilabel_metrics(
             clip_labels[clip_index], probabilities, names
@@ -449,13 +447,41 @@ def ensure_fp32_birdset_report(
     names: list[str],
     batch_size: int,
 ) -> None:
-    """Create the missing strict-DB3V cross-domain FP32 reference once."""
-    if chain.birdset_fp32_report.exists():
-        return
-    if chain.family != "db3v_strict_fewshot":
-        raise FileNotFoundError(chain.birdset_fp32_report)
-
+    """Create or replace the canonical BirdSet FP32 reference when needed."""
     dataset_dir = chain.birdset_dataset_dir
+    sample_spec = audit_dataset(dataset_dir, require_canonical=True)
+    if chain.birdset_fp32_report.exists():
+        existing = load_json(chain.birdset_fp32_report)
+        metrics = existing.get("models", {}).get(MODEL_NAME, {})
+        clip_samples = metrics.get("clip_level", {}).get("samples")
+        slice_samples = metrics.get("slice_level", {}).get("samples")
+        identity = existing.get("sample_specification", {}).get(
+            "sample_identity_sha256"
+        )
+        if (
+            clip_samples == EXPECTED_CLIPS
+            and slice_samples == EXPECTED_SLICES
+            and identity == sample_spec["sample_identity_sha256"]
+        ):
+            return
+        if (
+            clip_samples == EXPECTED_CLIPS
+            and slice_samples == EXPECTED_SLICES
+            and identity is None
+        ):
+            existing["dataset_dir"] = relative(dataset_dir)
+            existing["sample_specification"] = sample_spec
+            chain.birdset_fp32_report.write_text(
+                json.dumps(existing, indent=2),
+                encoding="utf-8",
+            )
+            print(
+                f"  {chain.chain_id}: annotated canonical FP32 BirdSet reference "
+                f"{chain.birdset_fp32_report}",
+                flush=True,
+            )
+            return
+
     features = np.load(dataset_dir / "test_data.npy", mmap_mode="r")
     clip_index = np.load(dataset_dir / "test_clip_index.npy").astype(np.int64)
     clip_labels = np.load(dataset_dir / "test_clip_multilabel.npy")
@@ -509,6 +535,7 @@ def ensure_fp32_birdset_report(
         ),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "dataset_dir": relative(dataset_dir),
+        "sample_specification": sample_spec,
         "model_path": relative(chain.model_path),
         "label_map": load_label_map(
             chain.model_dir / f"{MODEL_NAME}.labels.json"
@@ -1048,6 +1075,7 @@ def main() -> None:
         "batch_size": arguments.batch_size,
         "num_threads": arguments.num_threads,
         "tensorflow_version": tf.__version__,
+        "birdset_test_protocol": validate_all_features(DATA_DIR),
         "chains": [report["chain"] for report in reports],
     }
     (output_dir / "experiment_protocol.json").write_text(

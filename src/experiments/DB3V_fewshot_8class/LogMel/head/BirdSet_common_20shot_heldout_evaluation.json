@@ -1,0 +1,237 @@
+{
+  "dataset": "BirdSet SSW test_5s",
+  "purpose": "Independent cross-domain evaluation of a strict multi-seed DB3V support adaptation model.",
+  "created_at_utc": "2026-07-27T08:02:50.563015+00:00",
+  "dataset_dir": "src\\dataset_processing\\output\\LogMel_BirdSet_external_split_20shot_8class\\test",
+  "sample_specification": {
+    "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
+    "scope": "common_20shot_heldout_197_recordings",
+    "dataset": "BirdSet SSW test_5s",
+    "source_split": "SSW test_5s shards 1-4",
+    "partition_rule": "Seed-42 grouped 20-shot support recordings are excluded. The nested 5-shot and 10-shot supports are therefore excluded too.",
+    "split_unit": "original long recording",
+    "split_seed": 42,
+    "maximum_support_scale_excluded": 20,
+    "recordings": 197,
+    "clips_5s": 18265,
+    "slices_1s": 91325,
+    "slices_per_clip": 5,
+    "sample_rate_hz": 16000,
+    "feature_type": "logmel",
+    "feature_shape": [
+      32,
+      40
+    ],
+    "classes": 8,
+    "globally_singleton_clips": 9626,
+    "sample_identity_sha256": "1f3a5982558abd0e7dbfe34556410719971b24ac60d29be0166226c892ec056e",
+    "dataset_dir": "src\\dataset_processing\\output\\LogMel_BirdSet_external_split_20shot_8class\\test",
+    "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
+    "support_test_recording_overlap": 0
+  },
+  "model_path": "src\\experiments\\DB3V_fewshot_8class\\LogMel\\head\\DS_CNN_Model.h5",
+  "label_map": {
+    "Agelaius_phoeniceus": 0,
+    "Cardinalis_cardinalis": 1,
+    "Certhia_americana": 2,
+    "Corvus_brachyrhynchos": 3,
+    "Setophaga_aestiva": 4,
+    "Setophaga_ruticilla": 5,
+    "Spinus_tristis": 6,
+    "Turdus_migratorius": 7
+  },
+  "models": {
+    "DS_CNN_Model": {
+      "slice_level": {
+        "samples": 91325,
+        "top1_any_target_accuracy": 0.17984122638926908,
+        "top3_any_target_accuracy": 0.46851355050643306,
+        "per_class": {
+          "Agelaius_phoeniceus": {
+            "label": 0,
+            "support": 29245,
+            "top1_recall": 0.10511198495469311
+          },
+          "Cardinalis_cardinalis": {
+            "label": 1,
+            "support": 18205,
+            "top1_recall": 0.09689645701730294
+          },
+          "Certhia_americana": {
+            "label": 2,
+            "support": 875,
+            "top1_recall": 0.7177142857142857
+          },
+          "Corvus_brachyrhynchos": {
+            "label": 3,
+            "support": 17835,
+            "top1_recall": 0.5643397813288478
+          },
+          "Setophaga_aestiva": {
+            "label": 4,
+            "support": 1590,
+            "top1_recall": 0.0220125786163522
+          },
+          "Setophaga_ruticilla": {
+            "label": 5,
+            "support": 0,
+            "top1_recall": null
+          },
+          "Spinus_tristis": {
+            "label": 6,
+            "support": 13385,
+            "top1_recall": 0.00844228614120284
+          },
+          "Turdus_migratorius": {
+            "label": 7,
+            "support": 15280,
+            "top1_recall": 0.0487565445026178
+          }
+        }
+      },
+      "clip_level": {
+        "samples": 18265,
+        "top1_any_target_accuracy": 0.18094716671229127,
+        "top3_any_target_accuracy": 0.4823432794963044,
+        "per_class": {
+          "Agelaius_phoeniceus": {
+            "label": 0,
+            "support": 5849,
+            "top1_recall": 0.0702684219524705
+          },
+          "Cardinalis_cardinalis": {
+            "label": 1,
+            "support": 3641,
+            "top1_recall": 0.08129634715737435
+          },
+          "Certhia_americana": {
+            "label": 2,
+            "support": 175,
+            "top1_recall": 0.8228571428571428
+          },
+          "Corvus_brachyrhynchos": {
+            "label": 3,
+            "support": 3567,
+            "top1_recall": 0.6624614522007289
+          },
+          "Setophaga_aestiva": {
+            "label": 4,
+            "support": 318,
+            "top1_recall": 0.006289308176100629
+          },
+          "Setophaga_ruticilla": {
+            "label": 5,
+            "support": 0,
+            "top1_recall": null
+          },
+          "Spinus_tristis": {
+            "label": 6,
+            "support": 2677,
+            "top1_recall": 0.0033619723571161747
+          },
+          "Turdus_migratorius": {
+            "label": 7,
+            "support": 3056,
+            "top1_recall": 0.02617801047120419
+          }
+        }
+      },
+      "globally_singleton_clip_level": {
+        "samples": 9626,
+        "accuracy": 0.16102223145647204,
+        "supported_macro_f1": 0.09016278860076717,
+        "supported_classes": [
+          "Agelaius_phoeniceus",
+          "Cardinalis_cardinalis",
+          "Certhia_americana",
+          "Corvus_brachyrhynchos",
+          "Setophaga_aestiva",
+          "Spinus_tristis",
+          "Turdus_migratorius"
+        ],
+        "confusion_matrix": [
+          [
+            96,
+            73,
+            1168,
+            1479,
+            9,
+            9,
+            2,
+            2
+          ],
+          [
+            62,
+            129,
+            568,
+            842,
+            2,
+            8,
+            0,
+            22
+          ],
+          [
+            3,
+            0,
+            93,
+            13,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            12,
+            23,
+            675,
+            1207,
+            2,
+            27,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            18,
+            110,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            60,
+            13,
+            701,
+            605,
+            16,
+            80,
+            8,
+            0
+          ],
+          [
+            79,
+            75,
+            785,
+            513,
+            7,
+            11,
+            1,
+            17
+          ]
+        ]
+      }
+    }
+  }
+}

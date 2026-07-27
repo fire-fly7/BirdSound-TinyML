@@ -4,7 +4,8 @@ The script downloads a configurable set of quality grades, prioritizes country
 and recording-session diversity, and guarantees that DB3V source recording IDs
 are excluded. It writes per-recording metadata so training/validation splits
 can later use recording, location, or country groups rather than audio segments.
-XENO_CANTO_API_KEY, when set, overrides the stored legacy key.
+The XENO_CANTO_API_KEY environment variable is required; credentials are never
+stored in the repository.
 """
 
 from __future__ import annotations
@@ -28,7 +29,6 @@ from pydub.exceptions import CouldntDecodeError
 
 
 API_URL = "https://xeno-canto.org/api/3/recordings"
-API_KEY = "0d1823264f3d866a05df71132f35b54ae10391cf"
 REQUEST_TIMEOUT = (15, 90)
 PAGE_SIZE = 500
 DEFAULT_QUALITY_GRADES = ("A", "B", "C", "D", "E")
@@ -659,7 +659,11 @@ def main() -> None:
     if arguments.request_delay_seconds < 0:
         raise ValueError("--request-delay-seconds must not be negative.")
 
-    api_key = os.environ.get("XENO_CANTO_API_KEY", API_KEY)
+    api_key = os.environ.get("XENO_CANTO_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError(
+            "Set XENO_CANTO_API_KEY before querying or downloading Xeno-canto."
+        )
     db3v_ids = load_db3v_source_ids(arguments.db3v_root)
     legacy_overlap_ids = load_overlap_log_ids(arguments.overlap_log)
     excluded_ids = db3v_ids | legacy_overlap_ids
