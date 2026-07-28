@@ -1,4 +1,4 @@
-"""Quantize and evaluate all selected zero-shot and few-shot model chains."""
+"""Quantize and evaluate the current strict zero-shot and few-shot chains."""
 
 from __future__ import annotations
 
@@ -85,8 +85,6 @@ def parse_arguments() -> argparse.Namespace:
         nargs="+",
         choices=(
             "zero_shot",
-            "db3v_fewshot",
-            "birdset_fewshot",
             "db3v_strict_fewshot",
             "birdset_strict_fewshot",
         ),
@@ -155,86 +153,6 @@ def build_chains() -> list[Chain]:
                 db3v_fp32_report=model_dir / "DB3V_evaluation.json",
                 xeno_fp32_report=model_dir / f"{MODEL_NAME}.validation.json",
                 xeno_fp32_kind="validation",
-            )
-        )
-
-    shot_roots = {
-        5: EXPERIMENTS_DIR / "DB3V_fewshot_8class",
-        10: EXPERIMENTS_DIR / "DB3V_fewshot_10shot_8class",
-        20: EXPERIMENTS_DIR / "DB3V_fewshot_20shot_8class",
-    }
-    comparison = read_csv(
-        EXPERIMENTS_DIR
-        / "DB3V_fewshot_comparison_8class"
-        / "comparison_summary.csv"
-    )
-    selected_rows = [
-        row for row in comparison if int(row["requested_shots"]) in shot_roots
-    ]
-    for row in selected_rows:
-        feature = row["feature"]
-        shots = int(row["requested_shots"])
-        policy = row["selected_policy"]
-        model_dir = shot_roots[shots] / feature / policy
-        chains.append(
-            Chain(
-                chain_id=f"db3v_{shots}shot_{feature.lower()}_{policy}",
-                family="db3v_fewshot",
-                feature=feature,
-                requested_shots=shots,
-                policy=policy,
-                model_dir=model_dir,
-                representative_sources=(
-                    DATA_DIR / f"{feature}_dataset_A_8class" / "train_data.npy",
-                    db3v_support_dir(feature, shots) / "support_data.npy",
-                ),
-                birdset_scope=CANONICAL_SCOPE,
-                birdset_dataset_dir=birdset_test_dir(feature),
-                birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
-                db3v_scope="common_20shot_heldout_10197_recordings",
-                db3v_dataset_dir=(
-                    DATA_DIR / f"{feature}_DB3V_external_split_20shot_8class"
-                ),
-                db3v_fp32_report=(
-                    model_dir / "DB3V_common_20shot_heldout_evaluation.json"
-                ),
-                xeno_fp32_report=model_dir / f"{MODEL_NAME}.fewshot.json",
-                xeno_fp32_kind="fewshot",
-            )
-        )
-
-    birdset_comparison = read_csv(
-        EXPERIMENTS_DIR / "BirdSet_fewshot_8class" / "comparison_summary.csv"
-    )
-    for row in birdset_comparison:
-        feature = row["feature"]
-        policy = row["selected_policy"]
-        model_dir = EXPERIMENTS_DIR / "BirdSet_fewshot_8class" / feature / policy
-        chains.append(
-            Chain(
-                chain_id=f"birdset_5shot_{feature.lower()}_{policy}",
-                family="birdset_fewshot",
-                feature=feature,
-                requested_shots=5,
-                policy=policy,
-                model_dir=model_dir,
-                representative_sources=(
-                    DATA_DIR / f"{feature}_dataset_A_8class" / "train_data.npy",
-                    DATA_DIR
-                    / f"{feature}_BirdSet_external_split_8class"
-                    / "support"
-                    / "support_data.npy",
-                ),
-                birdset_scope=CANONICAL_SCOPE,
-                birdset_dataset_dir=birdset_test_dir(feature),
-                birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
-                db3v_scope="full_10658_recordings",
-                db3v_dataset_dir=DATA_DIR / f"{feature}_dataset_DB3V_8class",
-                db3v_fp32_report=model_dir / "DB3V_full_evaluation.json",
-                xeno_fp32_report=(
-                    model_dir / f"{MODEL_NAME}.birdset_fewshot.json"
-                ),
-                xeno_fp32_kind="birdset_fewshot",
             )
         )
 
@@ -1054,14 +972,6 @@ def main() -> None:
         "representative_samples": arguments.representative_samples,
         "calibration_rule": {
             "zero_shot": "Xeno-canto training features only.",
-            "db3v_fewshot": (
-                "Equal requested sample allocation between Xeno-canto training "
-                "features and the matching 5/10/20-shot DB3V support."
-            ),
-            "birdset_fewshot": (
-                "Equal requested sample allocation between Xeno-canto training "
-                "features and isolated BirdSet support."
-            ),
             "birdset_strict_fewshot": (
                 "Equal requested sample allocation between Xeno-canto training "
                 "features and the matching grouped 5/10/20-shot BirdSet support."

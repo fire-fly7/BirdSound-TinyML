@@ -27,9 +27,6 @@ from tensorflow.keras.callbacks import Callback, EarlyStopping
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RECORDING_PATTERN = re.compile(r"^(.*)_\d+_\d+\.ogg$")
 POLICIES = (
-    "head",
-    "last_block",
-    "all",
     "head_only",
     "bn_head",
     "bn_head_replay",
@@ -324,26 +321,7 @@ def configure_trainable(model: tf.keras.Model, policy: str) -> list[str]:
         for layer in model.layers:
             layer.trainable = True
         return [layer.name for layer in model.layers if layer.trainable]
-    if policy == "head":
-        dense_indices = [
-            index
-            for index, layer in enumerate(model.layers)
-            if isinstance(layer, tf.keras.layers.Dense)
-        ]
-        start = dense_indices[-2]
-    elif policy == "last_block":
-        block_indices = [
-            index
-            for index, layer in enumerate(model.layers)
-            if isinstance(layer, tf.keras.layers.SeparableConv2D)
-        ]
-        start = block_indices[-1]
-    else:
-        start = 0
-    for layer in model.layers[start:]:
-        if not isinstance(layer, tf.keras.layers.BatchNormalization):
-            layer.trainable = True
-    return [layer.name for layer in model.layers if layer.trainable]
+    raise ValueError(f"Unsupported strict fine-tuning policy: {policy}")
 
 
 def balanced_replay_rows(
