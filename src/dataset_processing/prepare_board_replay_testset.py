@@ -43,6 +43,7 @@ SLICES_PER_DB3V_RECORDING = 8
 SLICES_PER_BIRDSET_CLIP = 5
 PACKAGE_SCHEMA = 1
 PROBE_SEED = 20260729
+DB3V_SOURCE_PATTERN = re.compile(r"^(\d+)(?:_\d+)+$")
 STRICT_ROOTS = (
     ("zero_shot", "ZeroShot_strict_INT8_quantization_8class"),
     ("db3v_strict_fewshot", "DB3V_strict_INT8_quantization_8class"),
@@ -217,6 +218,17 @@ def canonical_record_path(value: str) -> str:
     return result
 
 
+def db3v_source_recording_id(item: dict[str, Any]) -> str:
+    declared = item.get("source_recording_id")
+    if declared is not None:
+        return str(declared)
+    stem = Path(canonical_record_path(str(item["path"]))).stem
+    match = DB3V_SOURCE_PATTERN.fullmatch(stem)
+    if match is None:
+        raise ValueError(f"Cannot recover DB3V source recording ID from {stem!r}.")
+    return match.group(1)
+
+
 def resolve_raw_path(value: str) -> Path:
     normalized = canonical_record_path(value)
     if normalized.startswith("row_dataset/"):
@@ -369,6 +381,9 @@ def validate_cross_feature_identity() -> dict[str, Any]:
         report[scope] = {
             "slices": int(total_slices),
             "recordings": len(reference_identity),
+            "source_recordings": len(
+                {db3v_source_recording_id(item) for item in reference_manifest}
+            ),
             "cross_feature_identity": True,
         }
     return report
@@ -412,12 +427,24 @@ def materialize_full_tensors(
             "features": {},
         },
         "db3v_full": {
-            "metric_levels": ["slice", "recording", "region", "pooled"],
+            "metric_levels": [
+                "slice",
+                "eight_second_recording",
+                "original_source_recording",
+                "region",
+                "pooled",
+            ],
             "group_size": "8 slices per recording",
             "features": {},
         },
         "db3v_common_20shot_heldout": {
-            "metric_levels": ["slice", "recording", "region", "pooled"],
+            "metric_levels": [
+                "slice",
+                "eight_second_recording",
+                "original_source_recording",
+                "region",
+                "pooled",
+            ],
             "group_size": "8 slices per recording",
             "features": {},
         },
@@ -931,9 +958,10 @@ def create_raw_probe(
                 source = resolve_raw_path(str(record["path"]))
                 source_index = int(record["source_indices"][slice_offset])
                 start_sample = slice_offset * SAMPLES_PER_WINDOW
-                source_id = Path(canonical_record_path(str(record["path"]))).stem
+                chunk_id = Path(canonical_record_path(str(record["path"]))).stem
+                source_id = db3v_source_recording_id(record)
                 sample_id = sanitize_sample_id(
-                    f"db3v_common20_r{region}_{source_id}_s{slice_offset:02d}"
+                    f"db3v_common20_r{region}_{chunk_id}_s{slice_offset:02d}"
                 )
                 destination = (
                     raw_root / "audio" / species_by_label[label] / f"{sample_id}.wav"
@@ -955,7 +983,7 @@ def create_raw_probe(
                         "label": label,
                         "species": species_by_label[label],
                         "source_dataset": "DB3V_common_20shot_heldout",
-                        "source_recording_id": f"r{region}:{source_id}",
+                        "source_recording_id": source_id,
                         "start_sample": start_sample,
                         "duration_samples": SAMPLES_PER_WINDOW,
                         "split": "board_test",

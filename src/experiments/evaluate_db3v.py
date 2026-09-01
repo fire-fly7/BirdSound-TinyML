@@ -12,6 +12,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +36,7 @@ DEFAULT_MODEL_DIR = REPOSITORY_ROOT / "src" / "experiments" / "TinyML_model_8cla
 MODEL_NAMES = ("BC_ResNet", "CNN_Model", "DS_CNN_Model", "MobileNetV2")
 REGIONS = (1, 2, 3)
 SLICES_PER_RECORDING = 8
+DB3V_SOURCE_PATTERN = re.compile(r"^(\d+)(?:_\d+)+$")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -66,6 +68,14 @@ def load_label_map(path: Path) -> dict[str, int]:
 
 def class_names(label_map: dict[str, int]) -> list[str]:
     return [name for name, _ in sorted(label_map.items(), key=lambda item: item[1])]
+
+
+def relative_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(REPOSITORY_ROOT))
+    except ValueError:
+        return str(resolved)
 
 
 def load_region(
@@ -156,6 +166,50 @@ def recording_probabilities(labels: np.ndarray, probabilities: np.ndarray) -> tu
     return grouped_labels[:, 0], grouped_probabilities.mean(axis=1)
 
 
+def source_recording_id(item: dict[str, Any]) -> str:
+    value = item.get("source_recording_id")
+    if value is not None:
+        return str(value)
+    match = DB3V_SOURCE_PATTERN.fullmatch(Path(str(item["path"])).stem)
+    if match is None:
+        raise ValueError(f"Cannot extract a DB3V source recording ID from {item['path']!r}.")
+    return match.group(1)
+
+
+def source_recording_probabilities(
+    recording_labels: np.ndarray,
+    recording_probabilities_: np.ndarray,
+    manifest: list[dict[str, Any]],
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Average all eight-second chunks that came from one original recording."""
+    if len(manifest) != len(recording_labels):
+        raise ValueError("DB3V manifest and eight-second probability counts differ.")
+    ordered_sources = list(
+        dict.fromkeys(source_recording_id(item) for item in manifest)
+    )
+    source_labels: list[int] = []
+    source_probabilities_: list[np.ndarray] = []
+    for source_id in ordered_sources:
+        indices = np.asarray(
+            [
+                index
+                for index, item in enumerate(manifest)
+                if source_recording_id(item) == source_id
+            ],
+            dtype=np.int64,
+        )
+        labels = np.unique(recording_labels[indices])
+        if len(labels) != 1:
+            raise ValueError(f"DB3V source {source_id} contains inconsistent labels.")
+        source_labels.append(int(labels[0]))
+        source_probabilities_.append(recording_probabilities_[indices].mean(axis=0))
+    return (
+        np.asarray(source_labels, dtype=np.int64),
+        np.asarray(source_probabilities_, dtype=np.float64),
+        ordered_sources,
+    )
+
+
 def validate_model(model: tf.keras.Model, model_name: str, num_classes: int) -> tuple[int, int]:
     input_shape = tuple(model.input_shape[1:])
     if len(input_shape) != 3 or input_shape[0] != 32 or input_shape[2] != 1:
@@ -183,6 +237,9 @@ def evaluate_model(
     region_results: dict[str, Any] = {}
     all_labels: list[np.ndarray] = []
     all_probabilities: list[np.ndarray] = []
+    all_source_labels: list[np.ndarray] = []
+    all_source_probabilities: list[np.ndarray] = []
+    manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
     started_at = time.perf_counter()
 
     print(f"Evaluating {model_name}...", flush=True)
@@ -194,13 +251,22 @@ def evaluate_model(
         slice_result = classification_metrics(labels, probabilities, names)
         clip_labels, clip_probabilities = recording_probabilities(labels, probabilities)
         recording_result = classification_metrics(clip_labels, clip_probabilities, names)
+        region_manifest = [item for item in manifest if int(item["region"]) == region]
+        source_labels, source_probabilities_, source_ids = source_recording_probabilities(
+            clip_labels, clip_probabilities, region_manifest
+        )
+        source_result = classification_metrics(source_labels, source_probabilities_, names)
         region_results[str(region)] = {
             "recordings": int(len(clip_labels)),
+            "source_recordings": len(source_ids),
             "slice_level": slice_result,
             "recording_level": recording_result,
+            "source_recording_level": source_result,
         }
         all_labels.append(labels)
         all_probabilities.append(probabilities)
+        all_source_labels.append(source_labels)
+        all_source_probabilities.append(source_probabilities_)
         print(
             f"  Region {region}: recording accuracy={recording_result['accuracy']:.4f}, "
             f"macro-F1={recording_result['macro_f1']:.4f}",
@@ -216,6 +282,11 @@ def evaluate_model(
     pooled_recording = classification_metrics(
         pooled_recording_labels, pooled_recording_probabilities, names
     )
+    pooled_source_labels = np.concatenate(all_source_labels)
+    pooled_source_probabilities = np.concatenate(all_source_probabilities)
+    pooled_source = classification_metrics(
+        pooled_source_labels, pooled_source_probabilities, names
+    )
     elapsed_seconds = time.perf_counter() - started_at
     print(
         f"  Pooled: recording accuracy={pooled_recording['accuracy']:.4f}, "
@@ -225,15 +296,17 @@ def evaluate_model(
 
     tf.keras.backend.clear_session()
     return {
-        "model_path": str(model_path.relative_to(REPOSITORY_ROOT)),
+        "model_path": relative_path(model_path),
         "input_shape": list(model.input_shape),
         "output_shape": list(model.output_shape),
         "inference_seconds": elapsed_seconds,
         "regions": region_results,
         "pooled": {
             "recordings": int(len(pooled_recording_labels)),
+            "source_recordings": int(len(pooled_source_labels)),
             "slice_level": pooled_slice,
             "recording_level": pooled_recording,
+            "source_recording_level": pooled_source,
         },
     }
 
@@ -260,7 +333,7 @@ def write_summary_csv(report: dict[str, Any], output_path: Path) -> Path:
         for model_name, model_result in report["models"].items():
             scopes = {"pooled": model_result["pooled"], **model_result["regions"]}
             for scope, scope_result in scopes.items():
-                for level in ("slice_level", "recording_level"):
+                for level in ("slice_level", "recording_level", "source_recording_level"):
                     metrics = scope_result[level]
                     writer.writerow(
                         {
@@ -268,7 +341,11 @@ def write_summary_csv(report: dict[str, Any], output_path: Path) -> Path:
                             "scope": scope,
                             "level": level,
                             "samples": metrics["samples"],
-                            "recordings": scope_result["recordings"],
+                            "recordings": (
+                                scope_result["source_recordings"]
+                                if level == "source_recording_level"
+                                else scope_result["recordings"]
+                            ),
                             "accuracy": metrics["accuracy"],
                             "balanced_accuracy": metrics["balanced_accuracy"],
                             "macro_precision": metrics["macro_precision"],

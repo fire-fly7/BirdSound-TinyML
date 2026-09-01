@@ -20,6 +20,12 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
 
+from birdset_test_protocol import (
+    CANONICAL_REPORT_NAME,
+    canonical_dataset_dir,
+    validate_all_features,
+)
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENTS_DIR = REPOSITORY_ROOT / "src" / "experiments"
@@ -75,6 +81,11 @@ def arguments() -> argparse.Namespace:
         "--force-evaluation",
         action="store_true",
         help="Regenerate DB3V reports without retraining completed models.",
+    )
+    parser.add_argument(
+        "--force-cross-domain",
+        action="store_true",
+        help="Regenerate BirdSet reports for the policies selected after summarization.",
     )
     parser.add_argument(
         "--summarize-only",
@@ -172,6 +183,160 @@ def train_and_evaluate(args: argparse.Namespace) -> None:
                         print(f"Using existing DB3V report: {evaluation_report}", flush=True)
 
 
+def selected_policy_map(
+    aggregate_rows: list[dict[str, Any]],
+) -> dict[tuple[str, int], str]:
+    return {
+        (str(row["feature"]), int(row["requested_shots"])): str(row["policy"])
+        for row in aggregate_rows
+        if bool(row["selected_by_mean_adaptation_score"])
+    }
+
+
+def evaluate_selected_birdset(
+    args: argparse.Namespace,
+    run_rows: list[dict[str, Any]],
+    aggregate_rows: list[dict[str, Any]],
+) -> None:
+    """Cross-test the selected DB3V policies without changing model selection."""
+    validate_all_features(DATASETS_DIR)
+    evaluate_script = EXPERIMENTS_DIR / "evaluate_birdset_ssw.py"
+    selected = selected_policy_map(aggregate_rows)
+    for row in run_rows:
+        feature = str(row["feature"])
+        shots = int(row["requested_shots"])
+        policy = str(row["policy"])
+        if selected.get((feature, shots)) != policy:
+            continue
+        destination = output_dir(
+            args.output_dir,
+            feature,
+            shots,
+            policy,
+            int(row["seed"]),
+        )
+        report = destination / CANONICAL_REPORT_NAME
+        if (
+            args.force
+            or args.force_evaluation
+            or args.force_cross_domain
+            or not report.exists()
+        ):
+            run(
+                [
+                    sys.executable,
+                    str(evaluate_script),
+                    "--models",
+                    "DS_CNN_Model",
+                    "--dataset-dir",
+                    str(canonical_dataset_dir(DATASETS_DIR, feature)),
+                    "--model-dir",
+                    str(destination),
+                    "--output",
+                    str(report),
+                ]
+            )
+        else:
+            print(f"Using existing BirdSet cross-test report: {report}", flush=True)
+
+
+def summarize_selected_cross_domain(
+    args: argparse.Namespace,
+    run_rows: list[dict[str, Any]],
+    aggregate_rows: list[dict[str, Any]],
+) -> None:
+    selected = selected_policy_map(aggregate_rows)
+    cross_rows: list[dict[str, Any]] = []
+    missing: list[str] = []
+    for row in run_rows:
+        feature = str(row["feature"])
+        shots = int(row["requested_shots"])
+        policy = str(row["policy"])
+        if selected.get((feature, shots)) != policy:
+            continue
+        destination = output_dir(
+            args.output_dir,
+            feature,
+            shots,
+            policy,
+            int(row["seed"]),
+        )
+        report_path = destination / CANONICAL_REPORT_NAME
+        if not report_path.exists():
+            missing.append(str(report_path.relative_to(REPOSITORY_ROOT)))
+            continue
+        evaluation = load_json(report_path)["models"]["DS_CNN_Model"]
+        clip = evaluation["clip_level"]
+        singleton = evaluation["globally_singleton_clip_level"]
+        cross_rows.append(
+            {
+                "feature": feature,
+                "requested_shots": shots,
+                "policy": policy,
+                "seed": int(row["seed"]),
+                "xeno_macro_f1": float(row["final_xeno_macro_f1"]),
+                "xeno_macro_f1_retention": float(row["xeno_macro_f1_retention"]),
+                "db3v_source_recording_macro_f1": float(row["db3v_macro_f1"]),
+                "db3v_source_recording_accuracy": float(row["db3v_accuracy"]),
+                "birdset_clips": int(clip["samples"]),
+                "birdset_top1_any_target": float(
+                    clip["top1_any_target_accuracy"]
+                ),
+                "birdset_top3_any_target": float(
+                    clip["top3_any_target_accuracy"]
+                ),
+                "birdset_singleton_clips": int(singleton["samples"]),
+                "birdset_singleton_accuracy": float(singleton["accuracy"]),
+                "birdset_singleton_supported_macro_f1": float(
+                    singleton["supported_macro_f1"]
+                ),
+            }
+        )
+    if missing:
+        print(
+            "Warning: selected DB3V chains missing BirdSet cross-test reports:\n  "
+            + "\n  ".join(missing),
+            file=sys.stderr,
+        )
+    if not cross_rows:
+        return
+    write_csv(args.output_dir / "selected_cross_domain_runs.csv", cross_rows)
+    groups: dict[tuple[str, int, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in cross_rows:
+        groups[(row["feature"], row["requested_shots"], row["policy"])].append(row)
+    metrics = (
+        "xeno_macro_f1",
+        "xeno_macro_f1_retention",
+        "db3v_source_recording_macro_f1",
+        "db3v_source_recording_accuracy",
+        "birdset_top1_any_target",
+        "birdset_top3_any_target",
+        "birdset_singleton_accuracy",
+        "birdset_singleton_supported_macro_f1",
+    )
+    rows: list[dict[str, Any]] = []
+    for (feature, shots, policy), values in sorted(groups.items()):
+        summary: dict[str, Any] = {
+            "feature": feature,
+            "requested_shots": shots,
+            "policy": policy,
+            "n_seeds": len(values),
+            "seeds": "|".join(
+                str(item["seed"]) for item in sorted(values, key=lambda x: x["seed"])
+            ),
+            "birdset_clips": values[0]["birdset_clips"],
+            "birdset_singleton_clips": values[0]["birdset_singleton_clips"],
+        }
+        for metric in metrics:
+            metric_mean, metric_std = metric_stats(
+                [float(item[metric]) for item in values]
+            )
+            summary[f"{metric}_mean"] = metric_mean
+            summary[f"{metric}_std"] = metric_std
+        rows.append(summary)
+    write_csv(args.output_dir / "selected_cross_domain_aggregate.csv", rows)
+
+
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -226,7 +391,7 @@ def summarize(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                     ]
                     selected = fine_tune["selected_split_model"]
                     db3v = evaluation["models"]["DS_CNN_Model"]["pooled"][
-                        "recording_level"
+                        "source_recording_level"
                     ]
                     run_rows.append(
                         {
@@ -234,6 +399,9 @@ def summarize(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                             "requested_shots": shots,
                             "actual_support_recordings": protocol[
                                 "support_recordings"
+                            ],
+                            "actual_support_source_recordings": protocol[
+                                "support_source_recordings"
                             ],
                             "policy": policy,
                             "seed": seed,
@@ -261,6 +429,9 @@ def summarize(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
                             "common_db3v_heldout_recordings": evaluation["models"][
                                 "DS_CNN_Model"
                             ]["pooled"]["recordings"],
+                            "common_db3v_heldout_source_recordings": evaluation[
+                                "models"
+                            ]["DS_CNN_Model"]["pooled"]["source_recordings"],
                             "db3v_accuracy": db3v["accuracy"],
                             "db3v_balanced_accuracy": db3v["balanced_accuracy"],
                             "db3v_macro_f1": db3v["macro_f1"],
@@ -297,6 +468,9 @@ def summarize(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
             "feature": feature,
             "requested_shots": shots,
             "actual_support_recordings": rows[0]["actual_support_recordings"],
+            "actual_support_source_recordings": rows[0][
+                "actual_support_source_recordings"
+            ],
             "policy": policy,
             "n_seeds": len(rows),
             "expected_seeds": len(args.seeds),
@@ -341,23 +515,29 @@ def summarize(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict
         "policies": {policy: POLICY_DEFINITIONS[policy] for policy in args.policies},
         "seeds": args.seeds,
         "random_seed_scope": (
-            "Fixed external support/held-out recordings; seed changes the internal "
-            "support train/validation split, replay sampling, batch order, and "
+            "Fixed source-grouped external support/held-out recordings; seed changes "
+            "the source-grouped internal support train/validation split, replay sampling, batch order, and "
             "TensorFlow stochastic operations."
         ),
         "selection": (
-            "Policy/epoch selection uses support validation recording macro-F1 "
+            "Policy/epoch selection uses support validation original-source-recording macro-F1 "
             "multiplied by capped Xeno-canto validation macro-F1 retention."
         ),
         "heldout_access_during_training_or_selection": False,
         "db3v_final_test": (
             "Every run is evaluated after training on the feature-matched common "
-            "20-shot held-out set. Held-out metrics are reported but never used "
+            "20-shot source-grouped held-out set. Primary metrics aggregate all "
+            "eight-second chunks by original Xeno-canto recording ID and are reported but never used "
             "by the training script or selected_by_mean_adaptation_score."
         ),
         "xeno_forgetting_test": (
             "Final Xeno-canto validation macro-F1, absolute change from the base "
             "model, and retention ratio are recorded for every run."
+        ),
+        "birdset_cross_domain_test": (
+            "After policy selection, every seed of the selected policy for each "
+            "feature/shot pair is evaluated on the canonical common BirdSet held-out "
+            "partition. BirdSet metrics never participate in policy or epoch selection."
         ),
         "standard_deviation": "Sample standard deviation (statistics.stdev, ddof=1).",
         "replay_ratio": args.replay_ratio,
@@ -389,6 +569,9 @@ def main() -> None:
     if not args.summarize_only:
         train_and_evaluate(args)
     run_rows, aggregate_rows = summarize(args)
+    if not args.summarize_only:
+        evaluate_selected_birdset(args, run_rows, aggregate_rows)
+    summarize_selected_cross_domain(args, run_rows, aggregate_rows)
     print(
         f"Saved {len(run_rows)} seed runs and {len(aggregate_rows)} aggregate rows "
         f"to {args.output_dir}",

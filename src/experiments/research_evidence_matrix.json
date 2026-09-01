@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-09-01T08:12:37.915512+00:00",
+  "research_evidence": {
+    "cross_dataset_generalization_without_adaptation": {
+      "status": "complete",
+      "features": [
+        "MFCC",
+        "LogMel",
+        "PCEN"
+      ],
+      "xeno_validation_recordings": 480,
+      "db3v_original_source_recordings": 1363,
+      "birdset_common_test_rows": 3,
+      "db3v_split_audit_passed": true,
+      "sources": [
+        "src/experiments/Feature_comparison_8class/comparison_summary.csv",
+        "src/experiments/Feature_comparison_8class/birdset_common_20shot_heldout_summary.csv",
+        "src/experiments/DB3V_fewshot_ablation_multiseed_8class/split_audit.json"
+      ]
+    },
+    "few_shot_adaptation": {
+      "db3v": {
+        "status": "complete",
+        "runs": 108,
+        "aggregate_groups": 36,
+        "features": [
+          "LogMel",
+          "MFCC",
+          "PCEN"
+        ],
+        "shots": [
+          5,
+          10,
+          20
+        ],
+        "policies": [
+          "bn_head",
+          "bn_head_replay",
+          "full",
+          "head_only"
+        ],
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "xeno_forgetting_recorded_for_every_run": true,
+        "sources": [
+          "src/experiments/DB3V_fewshot_ablation_multiseed_8class/runs.csv",
+          "src/experiments/DB3V_fewshot_ablation_multiseed_8class/aggregate.csv",
+          "src/experiments/DB3V_fewshot_ablation_multiseed_8class/experiment_protocol.json"
+        ]
+      },
+      "birdset": {
+        "status": "complete",
+        "runs": 108,
+        "aggregate_groups": 36,
+        "features": [
+          "LogMel",
+          "MFCC",
+          "PCEN"
+        ],
+        "shots": [
+          5,
+          10,
+          20
+        ],
+        "policies": [
+          "bn_head",
+          "bn_head_replay",
+          "full",
+          "head_only"
+        ],
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "xeno_forgetting_recorded_for_every_run": true,
+        "sources": [
+          "src/experiments/BirdSet_fewshot_ablation_multiseed_8class/runs.csv",
+          "src/experiments/BirdSet_fewshot_ablation_multiseed_8class/aggregate.csv",
+          "src/experiments/BirdSet_fewshot_ablation_multiseed_8class/experiment_protocol.json"
+        ]
+      }
+    },
+    "int8_stability": {
+      "zero_shot": {
+        "status": "complete",
+        "models": 3,
+        "models_expected": 3,
+        "same_model_same_test_fp32_int8_pairs": true,
+        "strict_integer_graphs": true,
+        "sources": [
+          "src/experiments/ZeroShot_strict_INT8_quantization_8class/summary.csv",
+          "src/experiments/ZeroShot_strict_INT8_quantization_8class/experiment_protocol.json"
+        ]
+      },
+      "db3v_selected_fewshot": {
+        "status": "complete",
+        "models": 27,
+        "models_expected": 27,
+        "same_model_same_test_fp32_int8_pairs": true,
+        "strict_integer_graphs": true,
+        "sources": [
+          "src/experiments/DB3V_strict_INT8_quantization_8class/summary.csv",
+          "src/experiments/DB3V_strict_INT8_quantization_8class/experiment_protocol.json"
+        ]
+      },
+      "birdset_selected_fewshot": {
+        "status": "complete",
+        "models": 27,
+        "models_expected": 27,
+        "same_model_same_test_fp32_int8_pairs": true,
+        "strict_integer_graphs": true,
+        "sources": [
+          "src/experiments/BirdSet_strict_INT8_quantization_8class/summary.csv",
+          "src/experiments/BirdSet_strict_INT8_quantization_8class/experiment_protocol.json"
+        ]
+      }
+    },
+    "embedded_deployment": {
+      "historical_output_parity": {
+        "status": "complete",
+        "comparisons": 570,
+        "model_pack_is_current": false
+      },
+      "historical_latency": {
+        "status": "complete",
+        "model_pack_is_current": false
+      },
+      "flash_and_ram": {
+        "status": "complete"
+      },
+      "current_feature_parity": {
+        "status": "blocked",
+        "reason": "The MCU is running and waiting in the LPUART RX path, but /dev/ttyACM0 commands time out; the host VCP TX route is not reaching the MCU. A cable/jumper/VCP route check is required before board feature dumps can be captured.",
+        "acceptance": "For the same PCM16 window, board feature int8 values must match the desktop feature quantized with the model input scale/zero-point; maximum mismatch 0 LSB for the strict criterion."
+      },
+      "current_output_parity_and_latency": {
+        "status": "pending_feature_uart_repair",
+        "reason": "The source-grouped DB3V experiment changes selected models and TFLite hashes, so the old 57-model run cannot validate the refreshed pack."
+      },
+      "power": {
+        "status": "blocked",
+        "reason": "No supply-current probe or power analyzer is connected. ST-Link target voltage is not a current or power measurement.",
+        "prepared_analysis": "src/experiments/analyze_board_power.py",
+        "prepared_interval_template": "src/experiments/Board_replay_8class/power_intervals_template.csv"
+      },
+      "source": "src/experiments/Board_replay_8class/deployment_evidence.json"
+    }
+  }
+}

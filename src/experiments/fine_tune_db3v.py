@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,7 @@ from tensorflow.keras.utils import to_categorical
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SLICES_PER_RECORDING = 8
+DB3V_SOURCE_PATTERN = re.compile(r"^(\d+)(?:_\d+)+$")
 POLICIES = (
     "head_only",
     "bn_head",
@@ -69,6 +71,11 @@ def arguments() -> argparse.Namespace:
             "Number of Xeno-canto replay slices per DB3V support slice. "
             "Used only by bn_head_replay."
         ),
+    )
+    parser.add_argument(
+        "--print-report",
+        action="store_true",
+        help="Print the complete JSON report instead of a concise completion summary.",
     )
     return parser.parse_args()
 
@@ -151,12 +158,36 @@ def recording_rows(recordings: np.ndarray) -> np.ndarray:
     )
 
 
+def source_recording_id(item: dict[str, Any]) -> str:
+    value = item.get("source_recording_id")
+    if value is not None:
+        return str(value)
+    match = DB3V_SOURCE_PATTERN.fullmatch(Path(str(item["path"])).stem)
+    if match is None:
+        raise ValueError(f"Cannot extract a DB3V source recording ID from {item['path']!r}.")
+    return match.group(1)
+
+
+def source_recording_index(
+    manifest: list[dict[str, Any]], recordings: np.ndarray
+) -> tuple[np.ndarray, list[str]]:
+    """Map contiguous eight-second records to original source recordings."""
+    identities = [source_recording_id(manifest[int(index)]) for index in recordings]
+    ordered_sources = list(dict.fromkeys(identities))
+    mapping = {source_id: index for index, source_id in enumerate(ordered_sources)}
+    recording_to_source = np.asarray(
+        [mapping[source_id] for source_id in identities], dtype=np.int64
+    )
+    return np.repeat(recording_to_source, SLICES_PER_RECORDING), ordered_sources
+
+
 def support_split(
+    manifest: list[dict[str, Any]],
     labels: np.ndarray,
     regions: np.ndarray,
     validation_per_stratum: int,
     seed: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     if len(labels) % SLICES_PER_RECORDING:
         raise ValueError("Support slices are not divisible into eight-slice recordings.")
     recording_labels = labels.reshape(-1, SLICES_PER_RECORDING)
@@ -167,22 +198,48 @@ def support_split(
         raise ValueError("A support recording contains inconsistent regions.")
     recording_labels = recording_labels[:, 0]
     recording_regions = recording_regions[:, 0]
+    if len(manifest) != len(recording_labels):
+        raise ValueError("Support manifest and eight-second recording count differ.")
+    recording_sources = np.asarray(
+        [source_recording_id(item) for item in manifest], dtype=object
+    )
+    source_strata: dict[str, set[tuple[int, int]]] = {}
+    for source_id, region, label in zip(
+        recording_sources, recording_regions, recording_labels, strict=True
+    ):
+        source_strata.setdefault(str(source_id), set()).add((int(region), int(label)))
+    cross_stratum = {
+        source_id: strata for source_id, strata in source_strata.items() if len(strata) != 1
+    }
+    if cross_stratum:
+        raise ValueError(f"DB3V source recordings cross strata: {cross_stratum}")
     random = np.random.default_rng(seed)
-    train: list[int] = []
-    validation: list[int] = []
+    train_sources: set[str] = set()
+    validation_sources: set[str] = set()
     for region in sorted(np.unique(recording_regions)):
         for label in sorted(np.unique(recording_labels)):
-            candidates = np.flatnonzero(
+            candidate_rows = np.flatnonzero(
                 (recording_regions == region) & (recording_labels == label)
             )
-            if len(candidates) <= validation_per_stratum:
-                raise ValueError(
-                    f"Region {region}, label {label} has only {len(candidates)} recordings."
-                )
+            candidates = sorted({str(recording_sources[index]) for index in candidate_rows})
+            if not candidates:
+                continue
             random.shuffle(candidates)
-            validation.extend(candidates[:validation_per_stratum].tolist())
-            train.extend(candidates[validation_per_stratum:].tolist())
-    return np.asarray(sorted(train)), np.asarray(sorted(validation))
+            validation_count = min(validation_per_stratum, max(0, len(candidates) - 1))
+            validation_sources.update(candidates[:validation_count])
+            train_sources.update(candidates[validation_count:])
+    if train_sources & validation_sources:
+        raise ValueError("DB3V internal support source leakage was detected.")
+    train = np.flatnonzero(np.isin(recording_sources, sorted(train_sources)))
+    validation = np.flatnonzero(np.isin(recording_sources, sorted(validation_sources)))
+    if not len(train) or not len(validation):
+        raise ValueError("DB3V grouped support split produced an empty partition.")
+    return (
+        np.asarray(train, dtype=np.int64),
+        np.asarray(validation, dtype=np.int64),
+        sorted(train_sources),
+        sorted(validation_sources),
+    )
 
 
 def configure_trainable(model: tf.keras.Model, policy: str) -> list[str]:
@@ -223,12 +280,13 @@ def balanced_replay_rows(
     for label in range(num_classes):
         candidates = np.flatnonzero(labels == label)
         count = base + int(label < remainder)
-        if len(candidates) < count:
-            raise ValueError(
-                f"Xeno class {label} has {len(candidates)} slices, fewer than "
-                f"the requested replay count {count}."
+        selected.append(
+            random.choice(
+                candidates,
+                size=count,
+                replace=len(candidates) < count,
             )
-        selected.append(random.choice(candidates, size=count, replace=False))
+        )
     rows = np.concatenate(selected).astype(np.int64, copy=False)
     random.shuffle(rows)
     return rows
@@ -369,19 +427,28 @@ def main() -> None:
         raise ValueError("Support data, labels, and regions have different lengths.")
     if len(support_manifest) * SLICES_PER_RECORDING != len(support_data):
         raise ValueError("Support manifest and slice counts differ.")
-    expected_support_recordings = shots_per_region_class * num_classes * 3
-    support_shortfall = expected_support_recordings - len(support_manifest)
+    support_source_ids = {source_recording_id(item) for item in support_manifest}
+    expected_support_source_recordings = shots_per_region_class * num_classes * 3
+    support_shortfall = expected_support_source_recordings - len(support_source_ids)
     recorded_shortfall = int(
-        split_manifest.get("support_shortfall_recordings", support_shortfall)
+        split_manifest.get("support_shortfall_source_recordings", support_shortfall)
     )
     if support_shortfall < 0 or recorded_shortfall != support_shortfall:
         raise ValueError(
-            "Support recording count is inconsistent with the split manifest: "
-            f"expected at most {expected_support_recordings}, found "
-            f"{len(support_manifest)}, recorded shortfall {recorded_shortfall}."
+            "Support source recording count is inconsistent with the split manifest: "
+            f"expected at most {expected_support_source_recordings}, found "
+            f"{len(support_source_ids)}, recorded shortfall {recorded_shortfall}."
         )
+    if int(split_manifest.get("support_test_source_id_overlap", -1)) != 0:
+        raise ValueError("DB3V split manifest does not prove zero source-ID overlap.")
 
-    train_recordings, validation_recordings = support_split(
+    (
+        train_recordings,
+        validation_recordings,
+        train_source_ids,
+        validation_source_ids,
+    ) = support_split(
+        support_manifest,
         support_labels,
         support_regions,
         args.validation_recordings_per_stratum,
@@ -393,12 +460,12 @@ def main() -> None:
     train_labels = support_labels[train_rows]
     validation_data = support_data[validation_rows][..., np.newaxis]
     validation_labels = support_labels[validation_rows]
-    validation_index = np.repeat(
-        np.arange(len(validation_recordings)), SLICES_PER_RECORDING
+    validation_index, validation_index_sources = source_recording_index(
+        support_manifest, validation_recordings
     )
     full_support_data = support_data[..., np.newaxis]
-    full_support_index = np.repeat(
-        np.arange(len(support_manifest)), SLICES_PER_RECORDING
+    full_support_index, full_support_sources = source_recording_index(
+        support_manifest, np.arange(len(support_manifest), dtype=np.int64)
     )
 
     xeno_data = np.load(args.xeno_dataset_dir / "validation_data.npy").astype(
@@ -580,15 +647,22 @@ def main() -> None:
         "label_map": base_labels,
         "protocol": {
             "support_recordings": len(support_manifest),
+            "support_source_recordings": len(support_source_ids),
             "support_slices": len(support_data),
             "shots_per_region_class": shots_per_region_class,
-            "requested_support_recordings": expected_support_recordings,
-            "support_shortfall_recordings": support_shortfall,
+            "shot_unit": "original Xeno-canto source recording",
+            "requested_support_source_recordings": expected_support_source_recordings,
+            "support_shortfall_source_recordings": support_shortfall,
             "support_recordings_by_region_class": split_manifest.get(
                 "support_recordings_by_region_class"
             ),
             "selection_train_recordings": len(train_recordings),
             "selection_validation_recordings": len(validation_recordings),
+            "selection_train_source_recordings": len(train_source_ids),
+            "selection_validation_source_recordings": len(validation_source_ids),
+            "selection_source_recording_overlap": len(
+                set(train_source_ids) & set(validation_source_ids)
+            ),
             "selection_validation_per_region_class": (
                 args.validation_recordings_per_stratum
             ),
@@ -597,6 +671,7 @@ def main() -> None:
                 support_manifest[index]["path"]
                 for index in validation_recordings.tolist()
             ],
+            "selection_validation_source_ids": validation_source_ids,
             "policy": args.policy,
             "learning_rate": args.learning_rate,
             "maximum_selection_epochs": args.epochs,
@@ -604,11 +679,13 @@ def main() -> None:
             "selected_epoch": best_epoch,
             "selection_metric": (
                 "support validation recording macro-F1 multiplied by capped "
-                "Xeno validation macro-F1 retention"
+                "Xeno validation macro-F1 retention; DB3V validation probabilities "
+                "are aggregated by original source recording"
             ),
             "final_training": (
                 "Reload the original Xeno model and train on all "
-                f"{len(support_manifest)} support recordings for the selected "
+                f"{len(support_manifest)} eight-second chunks from "
+                f"{len(full_support_sources)} source recordings for the selected "
                 "fixed epoch count."
             ),
             "trainable_layers": trainable_layers,
@@ -637,6 +714,20 @@ def main() -> None:
                 ),
                 "selection_replay_slices": len(selection_replay_rows),
                 "final_replay_slices": len(final_replay_rows),
+                "selection_replay_unique_slices": len(
+                    np.unique(selection_replay_rows)
+                ),
+                "final_replay_unique_slices": len(np.unique(final_replay_rows)),
+                "selection_replay_duplicate_draws": (
+                    len(selection_replay_rows)
+                    - len(np.unique(selection_replay_rows))
+                ),
+                "final_replay_duplicate_draws": (
+                    len(final_replay_rows) - len(np.unique(final_replay_rows))
+                ),
+                "sampling_with_replacement_when_class_pool_exhausted": (
+                    args.policy in REPLAY_POLICIES
+                ),
                 "selection_sampling_seed": (
                     args.seed + 10_000 if args.policy in REPLAY_POLICIES else None
                 ),
@@ -667,7 +758,14 @@ def main() -> None:
     (args.output_dir / f"{args.model_name}.fewshot.json").write_text(
         json.dumps(report, indent=2), encoding="utf-8"
     )
-    print(json.dumps(report, indent=2))
+    if args.print_report:
+        print(json.dumps(report, indent=2))
+    else:
+        print(
+            f"Saved {args.model_name}: policy={args.policy}, seed={args.seed}, "
+            f"epoch={best_epoch}, support_sources={len(support_source_ids)}, "
+            f"Xeno macro-F1={final_xeno['macro_f1']:.4f}"
+        )
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ DEFAULT_PACKAGE = REPOSITORY_ROOT / "board_replay_testset"
 REGIONS = (1, 2, 3)
 CLASS_COUNT = 8
 SLICES_PER_DB3V_RECORDING = 8
+DB3V_SOURCE_PATTERN = re.compile(r"^(\d+)(?:_\d+)+$")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -289,6 +291,32 @@ def aggregate_groups(
     return group_labels, sums / counts[:, np.newaxis]
 
 
+def db3v_source_id(item: dict[str, Any]) -> str:
+    declared = item.get("source_recording_id")
+    if declared is not None:
+        return str(declared)
+    stem = Path(str(item["path"]).replace("\\", "/")).stem
+    match = DB3V_SOURCE_PATTERN.fullmatch(stem)
+    if match is None:
+        raise ValueError(f"Cannot recover DB3V source recording ID from {stem!r}.")
+    return match.group(1)
+
+
+def aggregate_db3v_sources(
+    manifest: list[dict[str, Any]],
+    recording_labels: np.ndarray,
+    recording_scores: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    if len(manifest) != len(recording_labels):
+        raise ValueError("DB3V manifest and eight-second recording counts differ.")
+    source_to_index: dict[str, int] = {}
+    source_index = np.empty(len(manifest), dtype=np.int64)
+    for index, item in enumerate(manifest):
+        source = db3v_source_id(item)
+        source_index[index] = source_to_index.setdefault(source, len(source_to_index))
+    return aggregate_groups(recording_labels, recording_scores, source_index)
+
+
 def multilabel_metrics(
     labels: np.ndarray,
     scores: np.ndarray,
@@ -479,6 +507,8 @@ def evaluate_db3v_full(
     all_scores: list[np.ndarray] = []
     all_recording_labels: list[np.ndarray] = []
     all_recording_scores: list[np.ndarray] = []
+    all_manifest: list[dict[str, Any]] = []
+    manifest = load_json(directory / "manifest.json")
     for region in REGIONS:
         labels = np.load(directory / f"region_{region}_label.npy")
         scores = score_parts[region]
@@ -489,15 +519,33 @@ def evaluate_db3v_full(
         result, recording_labels, recording_scores = db3v_region_result(
             labels, scores, recording_index, names
         )
+        region_manifest = [
+            item for item in manifest if int(item["region"]) == region
+        ]
+        source_labels, source_scores = aggregate_db3v_sources(
+            region_manifest,
+            recording_labels,
+            recording_scores,
+        )
+        result["source_recordings"] = len(source_labels)
+        result["source_recording_level"] = classification_metrics(
+            source_labels, source_scores, names
+        )
         region_results[str(region)] = result
         all_labels.append(labels)
         all_scores.append(scores)
         all_recording_labels.append(recording_labels)
         all_recording_scores.append(recording_scores)
+        all_manifest.extend(region_manifest)
     labels = np.concatenate(all_labels)
     scores = np.concatenate(all_scores)
     recording_labels = np.concatenate(all_recording_labels)
     recording_scores = np.concatenate(all_recording_scores)
+    source_labels, source_scores = aggregate_db3v_sources(
+        all_manifest,
+        recording_labels,
+        recording_scores,
+    )
     return {
         "regions": region_results,
         "pooled": {
@@ -505,6 +553,10 @@ def evaluate_db3v_full(
             "slice_level": classification_metrics(labels, scores, names),
             "recording_level": classification_metrics(
                 recording_labels, recording_scores, names
+            ),
+            "source_recordings": len(source_labels),
+            "source_recording_level": classification_metrics(
+                source_labels, source_scores, names
             ),
         },
     }

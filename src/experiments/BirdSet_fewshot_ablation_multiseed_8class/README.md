@@ -41,9 +41,10 @@ batch顺序和TensorFlow随机操作。选型分数为“support验证片段Top-
 
 下表每个数值均为三个seed的均值±样本标准差（`ddof=1`）。BirdSet Top-1表示
 五秒片段的最高概率类别命中任一multi-hot目标；BirdSet F1只在全局纯单物种片段
-的held-out支持类别上计算。Xeno与DB3V使用录音级八类Macro-F1。
+的held-out支持类别上计算。Xeno使用来源录音级八类Macro-F1；本表的DB3V列保留
+原实验生成时的八秒块级次要指标，只用于追溯，不作为当前DB3V主指标。
 
-| 特征 | shot | 均值优选策略 | 选型分数 | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | Xeno Macro-F1 | DB3V Macro-F1 |
+| 特征 | shot | 均值优选策略 | 选型分数 | BirdSet Top-1 | BirdSet纯单物种Macro-F1 | Xeno Macro-F1 | DB3V八秒块Macro-F1 |
 |---|---:|---|---:|---:|---:|---:|---:|
 | MFCC | 5 | BN+Head+Replay | 14.92% ± 6.63% | 20.06% ± 0.57% | 13.32% ± 0.56% | 48.41% ± 0.44% | 48.45% ± 0.47% |
 | MFCC | 10 | BN+Head+Replay | 15.30% ± 6.43% | 19.88% ± 0.29% | 13.44% ± 0.25% | 47.89% ± 0.61% | 48.45% ± 0.23% |
@@ -59,7 +60,8 @@ FP32下，PCEN 10-shot `BN+Head`取得最高BirdSet实际held-out Top-1和纯单
 Macro-F1；PCEN 20-shot `BN+Head`则有最高选型分数，并在Xeno保留和DB3V跨域
 结果上更均衡。5/10/20-shot不是简单独立样本计数，新增完整长录音会一次加入大量
 相关片段并改变support内部验证构成，因此实际held-out表现不保证随shot单调上升。
-这些FP32排序不能直接用于INT8部署；对应量化结果见相邻
+这些FP32排序不能直接用于INT8部署；对应量化结果及选中27个模型在完整DB3V
+1,363条原始来源录音上的当前主指标，见相邻
 `BirdSet_strict_INT8_quantization_8class/`目录。
 
 ## 可追溯来源与复现

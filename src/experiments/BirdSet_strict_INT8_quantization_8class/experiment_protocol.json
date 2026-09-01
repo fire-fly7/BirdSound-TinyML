@@ -1,13 +1,11 @@
 {
   "experiment": "Strict INT8 evaluation of selected zero-shot and few-shot chains",
-  "created_at_utc": "2026-07-27T07:49:53.239091+00:00",
+  "created_at_utc": "2026-09-01T08:04:10.081714+00:00",
   "selection_rule": "Quantize only FP32-selected chains. INT8 held-out results never select features, policies, shots, epochs, thresholds, or calibration sources.",
   "strict_int8_definition": "TFLITE_BUILTINS_INT8 only, int8 input and output, no floating-point tensors, and no QUANTIZE/DEQUANTIZE graph operators. Int32 bias and accumulators are expected integer-kernel behavior.",
   "representative_samples": 256,
   "calibration_rule": {
     "zero_shot": "Xeno-canto training features only.",
-    "db3v_fewshot": "Equal requested sample allocation between Xeno-canto training features and the matching 5/10/20-shot DB3V support.",
-    "birdset_fewshot": "Equal requested sample allocation between Xeno-canto training features and isolated BirdSet support.",
     "birdset_strict_fewshot": "Equal requested sample allocation between Xeno-canto training features and the matching grouped 5/10/20-shot BirdSet support.",
     "db3v_strict_fewshot": "Equal requested sample allocation between Xeno-canto training features and the matching 5/10/20-shot DB3V support.",
     "heldout_used_for_calibration": false
@@ -15,6 +13,7 @@
   "batch_size": 128,
   "num_threads": 4,
   "tensorflow_version": "2.19.0",
+  "db3v_primary_metric": "For every family, average all eight-second chunk probabilities from the same original Xeno-canto recording before computing DB3V metrics.",
   "birdset_test_protocol": {
     "protocol_id": "birdset_ssw_common_20shot_heldout_v1",
     "scope": "common_20shot_heldout_197_recordings",
@@ -116,6 +115,26 @@
         "dataset_dir": "src\\dataset_processing\\output\\PCEN_BirdSet_external_split_20shot_8class\\test",
         "known_limitation": "Setophaga_ruticilla has only two target clips in the complete filtered SSW set; both belong to an excluded support recording, so this held-out partition has no positive clip for that class.",
         "support_test_recording_overlap": 0
+      }
+    },
+    "validation": {
+      "cross_feature_test_sample_identities_match": true,
+      "cross_feature_support_recording_identities_match": true,
+      "support_scales_are_nested": true,
+      "support_test_recording_overlap": 0,
+      "excluded_support_scales": {
+        "5": {
+          "recordings": 10,
+          "clips_5s": 684
+        },
+        "10": {
+          "recordings": 11,
+          "clips_5s": 699
+        },
+        "20": {
+          "recordings": 14,
+          "clips_5s": 1413
+        }
       }
     },
     "comparison_rule": "Only BirdSet metrics produced on this protocol may appear in the current cross-chain ranking. Full-211, 5-shot-heldout-201, and 10-shot-heldout-200 reports are historical diagnostics."

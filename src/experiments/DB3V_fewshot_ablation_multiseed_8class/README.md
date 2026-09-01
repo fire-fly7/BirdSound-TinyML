@@ -1,39 +1,65 @@
 # DB3V严格微调与多随机种子实验
 
-本目录保存 MFCC、LogMel、PCEN 三条 Xeno-canto DS-CNN 基准链路在 DB3V
-5/10/20-shot support 上的严格微调消融。四种策略为：
+本目录保存三条Xeno-canto DS-CNN基准链路在DB3V 5/10/20-shot support上的严格微调消融。当前标准以DB3V原始Xeno-canto来源录音为独立样本单位；同一来源切出的多个八秒块不得跨support/test，也不得在主指标中获得多票。
 
-- `head_only`：仅训练最终softmax层；
-- `bn_head`：训练全部BatchNorm与最终softmax层；
-- `bn_head_replay`：BN+Head，并按1:1加入类别均衡的Xeno训练切片；
-- `full`：训练全部层，包括BatchNorm。
+## 数据隔离与规模
 
-固定support实际包含120/239/461条录音，最终统一在20-shot support之外的10,197条
-共同DB3V held-out录音上评估。随机种子为42、123、2026；每个结果均同步保存
-Xeno-canto验证Macro-F1及其相对基模型的变化。共完成
-`3特征 × 3 shot × 4策略 × 3 seed = 108` 组训练和评估。
+| shot | support源录音 | support八秒块 | 共同test源录音 | 共同test八秒块 | 共同test一秒切片 | 源录音短缺 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 116 | 1,009 | 970 | 7,660 | 61,280 | 4 |
+| 10 | 219 | 1,665 | 970 | 7,660 | 61,280 | 21 |
+| 20 | 393 | 2,998 | 970 | 7,660 | 61,280 | 87 |
 
-按平均适配分数选中的链路另在统一BirdSet公共test上复测：197条长录音、
-18,265个五秒片段、91,325个一秒窗口。规格与样本身份哈希见
-`../BirdSet_common_test_8class/test_protocol.json`。
+5/10/20-shot support在源录音级严格嵌套；共同test固定为最大20-shot support之外的970条独立源录音。三种特征的样本身份一致。审计同时确认support/test重叠为0，且DB3V与Xeno训练1,920条、验证480条录音的来源ID重叠均为0。
 
-主要文件：
+审计来源：`split_audit.json`；生成和复核入口分别为`../../dataset_processing/prepare_external_fewshot.py`与`../audit_db3v_source_split.py`。
 
-- `experiment_protocol.json`：数据隔离、随机性、策略和统计协议；
-- `runs.csv`：108个逐seed结果；
-- `aggregate.csv`：36个“特征×shot×策略”的均值和样本标准差；
-- `<feature>/<shot>shot/<policy>/seed_<seed>/`：模型、训练历史、微调报告和
-  DB3V逐地区/汇总评估；选中策略目录还包含统一BirdSet公共test跨域报告。
+## 严格策略
 
-策略选择只读取support内部验证与Xeno保留率，不读取DB3V held-out。按三个seed的
-平均适配分数，PCEN 20-shot `full`取得最高严格策略结果：DB3V共同held-out
-Macro-F1为70.50%±0.40%，Xeno Macro-F1为63.66%±0.44%，相对基模型提高
-10.98±0.44个百分点。按平均适配分数选中的9组策略现已对全部三个seed完成统一
-BirdSet公共test跨域复测和严格INT8量化；量化结果位于相邻目录
-`../DB3V_strict_INT8_quantization_8class/`。PCEN 20-shot `full`量化后DB3V
-Macro-F1降至52.52%±0.79%，当前严格INT8推荐为LogMel 10-shot `head_only`，
-DB3V Macro-F1为68.14%±0.17%。
+| 策略 | 可训练范围 | BatchNorm | Xeno replay |
+|---|---|---|---|
+| `head_only` | 最终8类softmax层 | 冻结 | 无 |
+| `bn_head` | 全部BatchNorm与最终层 | 训练 | 无 |
+| `bn_head_replay` | BN+Head | 训练 | support与类别均衡Xeno切片1:1 |
+| `full` | 全部层 | 训练 | 无 |
 
-复现入口为上级目录中的 `run_db3v_ablation_multiseed.py`；单组训练实现位于
-`fine_tune_db3v.py`。DB3V原始数据来源为
-[Zenodo 11544734](https://doi.org/10.5281/zenodo.11544734)。
+实验覆盖`3特征 × 3 shot × 4策略 × 3 seed = 108`个模型，种子为42、123、2026。策略和epoch只由support内部验证与Xeno保留率组成的适配分数选择；DB3V共同test和BirdSet公共test均不参与选型。每个运行都保存微调后的Xeno遗忘指标。
+
+## 选中策略及严格INT8结果
+
+下表只列每个“特征×shot”按三seed平均适配分数预先选中的策略。DB3V是970条原始源录音级Macro-F1；数值为均值±样本标准差。
+
+| 特征 | shot/策略 | Xeno Macro-F1（FP32→INT8） | DB3V Macro-F1（FP32→INT8） |
+|---|---|---:|---:|
+| MFCC | 5 / `head_only` | 47.73±0.31% → 47.78±0.31% | 55.17±0.20% → 54.63±0.18% |
+| MFCC | 10 / `bn_head_replay` | 49.16±0.49% → 47.01±0.50% | 57.49±0.27% → 56.17±0.63% |
+| MFCC | 20 / `bn_head_replay` | 48.39±0.45% → 48.02±0.55% | 57.40±0.86% → 56.99±0.92% |
+| LogMel | 5 / `head_only` | 59.59±0.23% → 53.32±0.32% | 67.23±0.48% → 63.79±0.19% |
+| LogMel | 10 / `bn_head_replay` | 61.00±0.26% → 59.38±0.50% | 68.12±0.38% → 66.67±0.96% |
+| **LogMel** | **20 / `bn_head_replay`** | **61.36±0.21% → 60.01±1.32%** | **68.84±0.68% → 67.73±0.59%** |
+| PCEN | 5 / `full` | 62.65±0.82% → 37.15±0.50% | **71.93±0.48%** → 55.20±1.10% |
+| PCEN | 10 / `full` | 62.83±0.67% → 32.34±2.42% | 71.78±1.00% → 46.09±6.09% |
+| PCEN | 20 / `full` | 61.64±0.65% → 28.08±4.86% | 71.27±0.20% → 37.73±9.40% |
+
+预先选中策略中，FP32目标域最高的是PCEN 5-shot `full`；PTQ后PCEN明显失稳。严格INT8部署推荐改为LogMel 20-shot `bn_head_replay`，其DB3V Macro-F1为67.73%±0.59%，Xeno Macro-F1为60.01%±1.32%。
+
+完整36组结果仍保存在`aggregate.csv`。其中未被适配分数选中的策略即使held-out更高，也不能在查看test后改列为推荐模型，否则会形成测试集选型偏差。
+
+## 文件与复现
+
+- `runs.csv`：108个逐seed结果。
+- `aggregate.csv`：36个“特征×shot×策略”汇总。
+- `experiment_protocol.json`：严格数据、选型和统计协议。
+- `selected_cross_domain_runs.csv`与`selected_cross_domain_aggregate.csv`：选中模型在BirdSet公共test上的27个运行和9组汇总。
+- `../DB3V_strict_INT8_quantization_8class/`：同一27个模型的FP32–INT8三域配对结果。
+- `<feature>/<shot>shot/<policy>/seed_<seed>/`：模型、训练历史、Xeno遗忘和逐粒度评估报告。
+
+```powershell
+& .\.venv\Scripts\python.exe src\experiments\audit_db3v_source_split.py
+& .\.venv\Scripts\python.exe src\experiments\run_db3v_ablation_multiseed.py --summarize-only
+& .\.venv\Scripts\python.exe src\experiments\evaluate_int8_experiments.py `
+  --families db3v_strict_fewshot `
+  --output-dir src\experiments\DB3V_strict_INT8_quantization_8class
+```
+
+DB3V来源：[Zenodo 11544734](https://doi.org/10.5281/zenodo.11544734)。

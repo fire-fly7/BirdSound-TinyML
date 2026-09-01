@@ -1,8 +1,10 @@
 """Create disjoint few-shot support and held-out test partitions for external data.
 
-BirdSet is grouped by original long recording. DB3V is stratified by region
-and class at the eight-second recording level. The held-out directories keep
-the filenames expected by the existing evaluators.
+BirdSet is grouped by original long recording. DB3V is grouped by the original
+Xeno-canto recording identifier encoded before the first underscore.
+All eight-second chunks from one source recording stay on the same side of the
+support/held-out boundary. The held-out directories keep the filenames expected
+by the existing evaluators.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ import numpy as np
 
 
 RECORDING_PATTERN = re.compile(r"^(.*)_\d+_\d+\.ogg$")
+DB3V_SOURCE_PATTERN = re.compile(r"^(\d+)(?:_\d+)+$")
 SLICES_PER_DB3V_RECORDING = 8
 
 
@@ -32,6 +35,14 @@ def arguments() -> argparse.Namespace:
 
 def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def db3v_source_recording_id(item: dict) -> str:
+    """Return the original Xeno-canto identifier for a DB3V chunk."""
+    match = DB3V_SOURCE_PATTERN.fullmatch(Path(str(item["path"])).stem)
+    if match is None:
+        raise ValueError(f"Cannot extract a DB3V source recording ID from {item['path']!r}.")
+    return match.group(1)
 
 
 def subset_birdset(
@@ -136,18 +147,43 @@ def split_db3v(source: Path, output: Path, shots: int, seed: int) -> None:
     support_manifest: list[dict] = []
     heldout_manifest: list[dict] = []
     stratum_counts: list[dict] = []
-    offset = 0
+    support_source_ids: set[str] = set()
+    heldout_source_ids: set[str] = set()
     output.mkdir(parents=True, exist_ok=True)
     for region in (1, 2, 3):
         features = np.load(source / f"region_{region}_data.npy", mmap_mode="r")
         labels = np.load(source / f"region_{region}_label.npy")
         recording_labels = labels.reshape(-1, SLICES_PER_DB3V_RECORDING)[:, 0]
+        region_manifest = [item for item in manifest if int(item["region"]) == region]
+        if len(region_manifest) != len(recording_labels):
+            raise ValueError(
+                f"Region {region} manifest/feature recording count mismatch: "
+                f"{len(region_manifest)} != {len(recording_labels)}."
+            )
+        grouped: dict[tuple[int, str], list[int]] = defaultdict(list)
+        for index, item in enumerate(region_manifest):
+            label = int(item["label"])
+            if label != int(recording_labels[index]):
+                raise ValueError(
+                    f"Region {region} manifest/feature label mismatch at recording {index}."
+                )
+            grouped[(label, db3v_source_recording_id(item))].append(index)
+
         selected: set[int] = set()
+        selected_region_source_ids: set[str] = set()
         for label in range(len(label_map)):
-            candidates = np.flatnonzero(recording_labels == label)
+            candidates = sorted(
+                source_id for candidate_label, source_id in grouped if candidate_label == label
+            )
             random.shuffle(candidates)
             selected_count = min(shots, len(candidates))
-            selected.update(candidates[:selected_count].tolist())
+            selected_sources = set(candidates[:selected_count])
+            selected_region_source_ids.update(selected_sources)
+            selected.update(
+                index
+                for source_id in selected_sources
+                for index in grouped[(label, source_id)]
+            )
             species = next(
                 name for name, class_id in label_map.items() if class_id == label
             )
@@ -156,8 +192,13 @@ def split_db3v(source: Path, output: Path, shots: int, seed: int) -> None:
                     "region": region,
                     "label": label,
                     "species": species,
-                    "available_recordings": len(candidates),
-                    "selected_recordings": selected_count,
+                    "available_source_recordings": len(candidates),
+                    "selected_source_recordings": selected_count,
+                    "selected_eight_second_recordings": sum(
+                        len(grouped[(label, source_id)])
+                        for source_id in selected_sources
+                    ),
+                    "source_recording_shortfall": shots - selected_count,
                 }
             )
         support_rows = np.concatenate(
@@ -180,10 +221,23 @@ def split_db3v(source: Path, output: Path, shots: int, seed: int) -> None:
         support_features.append(np.asarray(features[support_rows]))
         support_labels.append(labels[support_rows])
         support_regions.append(np.full(len(support_rows), region, dtype=np.int8))
-        region_manifest = [item for item in manifest if int(item["region"]) == region]
-        support_manifest.extend(region_manifest[index] for index in sorted(selected))
-        heldout_manifest.extend(region_manifest[index] for index in heldout_recordings)
-        offset += len(region_manifest)
+        for index in sorted(selected):
+            item = dict(region_manifest[index])
+            item["source_recording_id"] = db3v_source_recording_id(item)
+            support_manifest.append(item)
+            support_source_ids.add(item["source_recording_id"])
+        for index in heldout_recordings:
+            item = dict(region_manifest[index])
+            item["source_recording_id"] = db3v_source_recording_id(item)
+            heldout_manifest.append(item)
+            heldout_source_ids.add(item["source_recording_id"])
+        if selected_region_source_ids != {
+            db3v_source_recording_id(region_manifest[index]) for index in selected
+        }:
+            raise ValueError(f"Region {region} selected source identity mismatch.")
+    overlap = support_source_ids & heldout_source_ids
+    if overlap:
+        raise ValueError(f"DB3V source recording leakage detected: {sorted(overlap)}")
     np.save(output / "support_data.npy", np.concatenate(support_features))
     np.save(output / "support_label.npy", np.concatenate(support_labels))
     np.save(output / "support_region.npy", np.concatenate(support_regions))
@@ -192,15 +246,21 @@ def split_db3v(source: Path, output: Path, shots: int, seed: int) -> None:
     write_json(output / "manifest.json", heldout_manifest)
     audit = {
         "dataset": "DB3V",
+        "protocol_id": "db3v_original_xc_recording_grouped_v2",
         "seed": seed,
-        "split_unit": "eight-second recording",
+        "split_unit": "original Xeno-canto recording ID",
+        "source_id_rule": "leading digits before the first underscore",
         "stratification": "region and class",
         "requested_shots_per_region_class": shots,
+        "requested_shot_unit": "original source recording",
+        "support_source_recordings": len(support_source_ids),
+        "heldout_source_recordings": len(heldout_source_ids),
         "support_recordings": len(support_manifest),
         "heldout_recordings": len(heldout_manifest),
-        "support_shortfall_recordings": (
-            shots * len(label_map) * 3 - len(support_manifest)
+        "support_shortfall_source_recordings": (
+            shots * len(label_map) * 3 - len(support_source_ids)
         ),
+        "support_test_source_id_overlap": 0,
         "support_recordings_by_region_class": stratum_counts,
     }
     write_json(output / "split_manifest.json", audit)

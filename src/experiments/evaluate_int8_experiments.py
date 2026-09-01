@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, stdev
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -38,6 +39,7 @@ from evaluate_db3v import (
     load_label_map,
     load_region,
     recording_probabilities,
+    source_recording_probabilities,
 )
 from int8_inference import (
     FeatureInputSpec,
@@ -96,6 +98,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--num-threads", type=int, default=4)
     parser.add_argument("--force-convert", action="store_true")
+    parser.add_argument(
+        "--reuse-evaluations",
+        action="store_true",
+        help=(
+            "Reuse complete models/<chain_id>/evaluation.json reports and only "
+            "rebuild the combined summary/protocol files."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -260,7 +270,7 @@ def build_chains() -> list[Chain]:
                     birdset_scope=CANONICAL_SCOPE,
                     birdset_dataset_dir=birdset_test_dir(feature),
                     birdset_fp32_report=model_dir / CANONICAL_REPORT_NAME,
-                    db3v_scope="common_20shot_heldout_10197_recordings",
+                    db3v_scope="common_source_grouped_20shot_heldout",
                     db3v_dataset_dir=(
                         DATA_DIR
                         / f"{feature}_DB3V_external_split_20shot_8class"
@@ -472,6 +482,72 @@ def ensure_fp32_birdset_report(
     )
 
 
+class KerasPredictor:
+    """Adapter that lets the shared evaluators run an FP32 Keras model."""
+
+    def __init__(self, model: tf.keras.Model, batch_size: int) -> None:
+        self.model = model
+        self.batch_size = batch_size
+
+    def predict(self, features: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+        started = perf_counter()
+        probabilities = self.model.predict(
+            np.expand_dims(features, axis=-1),
+            batch_size=self.batch_size,
+            verbose=0,
+        )
+        elapsed = perf_counter() - started
+        samples = int(len(features))
+        values = int(np.prod(features.shape))
+        return probabilities, {
+            "samples": samples,
+            "values": values,
+            "clipped_low": 0,
+            "clipped_high": 0,
+            "input_saturation_fraction": 0.0,
+            "inference_seconds": elapsed,
+            "samples_per_second": samples / elapsed if elapsed else None,
+        }
+
+
+def ensure_fp32_db3v_report(
+    chain: Chain,
+    names: list[str],
+    batch_size: int,
+) -> None:
+    """Add the independent source-recording metric to an older FP32 report."""
+    existing = load_json(chain.db3v_fp32_report)
+    model_report = existing.get("models", {}).get(MODEL_NAME, {})
+    if "source_recording_level" in model_report.get("pooled", {}):
+        return
+
+    model = tf.keras.models.load_model(chain.model_path, compile=False)
+    result = evaluate_db3v(
+        KerasPredictor(model, batch_size),
+        chain.db3v_dataset_dir,
+        names,
+        tuple(int(value) for value in model.input_shape[1:3]),
+    )
+    existing.setdefault("models", {}).setdefault(MODEL_NAME, {}).update(result)
+    existing["source_recording_protocol"] = (
+        "Eight-second chunks are averaged within their original source "
+        "recording before classification; each independent source receives "
+        "one vote in the primary DB3V metric."
+    )
+    existing["source_recording_metrics_added_at_utc"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+    chain.db3v_fp32_report.write_text(
+        json.dumps(existing, indent=2), encoding="utf-8"
+    )
+    tf.keras.backend.clear_session()
+    print(
+        f"  {chain.chain_id}: added source-recording FP32 DB3V reference "
+        f"{chain.db3v_fp32_report}",
+        flush=True,
+    )
+
+
 def add_inference_stats(items: list[dict[str, Any]]) -> dict[str, Any]:
     samples = sum(item["samples"] for item in items)
     values = sum(item["values"] for item in items)
@@ -500,7 +576,10 @@ def evaluate_db3v(
     regions: dict[str, Any] = {}
     all_labels: list[np.ndarray] = []
     all_probabilities: list[np.ndarray] = []
+    all_source_labels: list[np.ndarray] = []
+    all_source_probabilities: list[np.ndarray] = []
     inference_items: list[dict[str, Any]] = []
+    manifest = load_json(dataset_dir / "manifest.json")
     for region in REGIONS:
         features, labels = load_region(
             dataset_dir, region, len(names), feature_shape
@@ -509,33 +588,49 @@ def evaluate_db3v(
         recording_labels, recording_probs = recording_probabilities(
             labels, probabilities
         )
+        region_manifest = [item for item in manifest if int(item["region"]) == region]
+        source_labels, source_probs, source_ids = source_recording_probabilities(
+            recording_labels, recording_probs, region_manifest
+        )
         regions[str(region)] = {
             "recordings": int(len(recording_labels)),
+            "source_recordings": len(source_ids),
             "inference": inference,
             "slice_level": classification_metrics(labels, probabilities, names),
             "recording_level": classification_metrics(
                 recording_labels, recording_probs, names
             ),
+            "source_recording_level": classification_metrics(
+                source_labels, source_probs, names
+            ),
         }
         inference_items.append(inference)
         all_labels.append(labels)
         all_probabilities.append(probabilities)
+        all_source_labels.append(source_labels)
+        all_source_probabilities.append(source_probs)
     pooled_labels = np.concatenate(all_labels)
     pooled_probabilities = np.concatenate(all_probabilities)
     recording_labels, recording_probs = recording_probabilities(
         pooled_labels, pooled_probabilities
     )
+    pooled_source_labels = np.concatenate(all_source_labels)
+    pooled_source_probabilities = np.concatenate(all_source_probabilities)
     return {
         "dataset_dir": relative(dataset_dir),
         "inference": add_inference_stats(inference_items),
         "regions": regions,
         "pooled": {
             "recordings": int(len(recording_labels)),
+            "source_recordings": int(len(pooled_source_labels)),
             "slice_level": classification_metrics(
                 pooled_labels, pooled_probabilities, names
             ),
             "recording_level": classification_metrics(
                 recording_labels, recording_probs, names
+            ),
+            "source_recording_level": classification_metrics(
+                pooled_source_labels, pooled_source_probabilities, names
             ),
         },
     }
@@ -564,8 +659,12 @@ def fp32_birdset(chain: Chain) -> dict[str, float]:
 
 
 def fp32_db3v(chain: Chain) -> dict[str, float]:
+    # DB3V contains multiple eight-second chunks from the same original
+    # Xeno-canto recording.  The source-recording level is therefore the only
+    # primary level that gives each independent source one vote, for every
+    # family (zero-shot, DB3V-adapted, and BirdSet-adapted).
     metrics = load_json(chain.db3v_fp32_report)["models"][MODEL_NAME]["pooled"][
-        "recording_level"
+        "source_recording_level"
     ]
     return {
         "accuracy": metrics["accuracy"],
@@ -589,8 +688,9 @@ def int8_birdset_summary(result: dict[str, Any]) -> dict[str, float]:
     }
 
 
-def int8_db3v_summary(result: dict[str, Any]) -> dict[str, float]:
-    metrics = result["pooled"]["recording_level"]
+def int8_db3v_summary(result: dict[str, Any], chain: Chain) -> dict[str, float]:
+    del chain  # Kept in the public helper signature for existing callers.
+    metrics = result["pooled"]["source_recording_level"]
     return {
         "accuracy": metrics["accuracy"],
         "balanced_accuracy": metrics["balanced_accuracy"],
@@ -672,6 +772,7 @@ def summary_row(report: dict[str, Any]) -> dict[str, Any]:
             "input_saturation_fraction"
         ],
         "db3v_scope": chain["db3v_scope"],
+        "db3v_metric_level": "original_source_recording",
         "db3v_fp32_accuracy": fp32["db3v"]["accuracy"],
         "db3v_int8_accuracy": report["int8_summary"]["db3v"]["accuracy"],
         "db3v_accuracy_delta": report["delta"]["db3v"]["accuracy"],
@@ -835,6 +936,7 @@ def evaluate_chain(
             raise ValueError(f"Label map mismatch for {dataset_dir}.")
 
     ensure_fp32_birdset_report(chain, names, batch_size)
+    ensure_fp32_db3v_report(chain, names, batch_size)
     print(f"  {chain.chain_id}: Xeno validation", flush=True)
     xeno_result = evaluate_xeno(
         predictor,
@@ -870,7 +972,7 @@ def evaluate_chain(
             if isinstance(value, (int, float))
         },
         "birdset": int8_birdset_summary(birdset_result),
-        "db3v": int8_db3v_summary(db3v_result),
+        "db3v": int8_db3v_summary(db3v_result, chain),
     }
     report = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -944,6 +1046,29 @@ def main() -> None:
     reports: list[dict[str, Any]] = []
     for index, chain in enumerate(chains, start=1):
         print(f"[{index}/{len(chains)}] {chain.chain_id}", flush=True)
+        existing_report = output_dir / "models" / chain.chain_id / "evaluation.json"
+        if arguments.reuse_evaluations and existing_report.exists():
+            report = load_json(existing_report)
+            if report.get("chain", {}).get("chain_id") != chain.chain_id:
+                raise ValueError(f"Mismatched cached report: {existing_report}")
+            if (
+                report.get("chain", {}).get("db3v_scope") != chain.db3v_scope
+                or report.get("quantization", {}).get(
+                    "floating_point_tensor_count"
+                )
+                != 0
+                or "source_recording_level"
+                not in report.get("int8", {})
+                .get("db3v", {})
+                .get("pooled", {})
+            ):
+                raise ValueError(
+                    f"Cached report is not current strict source-level evidence: "
+                    f"{existing_report}"
+                )
+            reports.append(report)
+            print(f"  reused {existing_report}", flush=True)
+            continue
         reports.append(
             evaluate_chain(
                 chain,
@@ -985,6 +1110,10 @@ def main() -> None:
         "batch_size": arguments.batch_size,
         "num_threads": arguments.num_threads,
         "tensorflow_version": tf.__version__,
+        "db3v_primary_metric": (
+            "For every family, average all eight-second chunk probabilities from "
+            "the same original Xeno-canto recording before computing DB3V metrics."
+        ),
         "birdset_test_protocol": validate_all_features(DATA_DIR),
         "chains": [report["chain"] for report in reports],
     }

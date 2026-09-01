@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "evidence_updated_at": "2026-08-30",
+  "scope_note": "Historical board evidence is retained with exact source/model commits. The source-grouped DB3V refresh changes the model pack, so historical deployment results are portability evidence only and are not claimed as a rerun of the refreshed models.",
+  "historical_complete_run": {
+    "run_id": "board_replay_all57_all192_20260729",
+    "board": "STM32L552",
+    "board_source_commit": "073a1f1a40d689448b332bac717961475315bebf",
+    "model_train_commit": "42ead2e614e3f40afc7da29e660fc94609d10817",
+    "firmware_source_dirty": false,
+    "model_train_dirty": false,
+    "models_complete": 57,
+    "models_expected": 57,
+    "flash_verified_ok": 57,
+    "flash_failed": 0,
+    "raw_pcm_predictions": 10944,
+    "desktop_tflite_vs_tflm_output_comparisons": 570,
+    "prediction_mismatches": 0,
+    "maximum_output_error_lsb": 0,
+    "reference_runtime": "tensorflow-cpu==2.19.0 BUILTIN_REF",
+    "tensor_arena_configured_bytes": 98304,
+    "tensor_arena_used_bytes_min": 27284,
+    "tensor_arena_used_bytes_median": 79124,
+    "tensor_arena_used_bytes_max": 79172,
+    "feature_runtime_medians": {
+      "MFCC": {
+        "frontend_ms": 81.716,
+        "inference_ms": 422.868,
+        "arena_used_bytes": 27332
+      },
+      "LogMel": {
+        "frontend_ms": 67.291,
+        "inference_ms": 2112.625,
+        "arena_used_bytes": 79172
+      },
+      "PCEN": {
+        "frontend_ms": 252.825,
+        "inference_ms": 2106.398,
+        "arena_used_bytes": 79172
+      }
+    },
+    "raw_audio_annotation_policy": "source-label",
+    "raw_audio_scientific_metrics_valid": false,
+    "remote_evidence_path": "/home/cy/code/program/LED_TEST/board_results/board_replay_all57_all192_20260729",
+    "remote_evidence_files_checked": 461
+  },
+  "firmware_resource_measurement": {
+    "source": "arm-none-eabi-size on retained zero-shot ELF files",
+    "toolchain": "xPack GNU Arm Embedded GCC 14.2.1",
+    "flash_capacity_bytes": 524288,
+    "ram1_capacity_bytes": 196608,
+    "ram2_capacity_bytes": 65536,
+    "ram2_used_bytes": 0,
+    "models": {
+      "zero_shot_mfcc": {
+        "text_bytes": 179736,
+        "data_bytes": 120,
+        "bss_bytes": 176696,
+        "flash_text_plus_data_bytes": 179856,
+        "static_ram_data_plus_bss_bytes": 176816
+      },
+      "zero_shot_logmel": {
+        "text_bytes": 172336,
+        "data_bytes": 120,
+        "bss_bytes": 176680,
+        "flash_text_plus_data_bytes": 172456,
+        "static_ram_data_plus_bss_bytes": 176800
+      },
+      "zero_shot_pcen": {
+        "text_bytes": 176152,
+        "data_bytes": 120,
+        "bss_bytes": 176680,
+        "flash_text_plus_data_bytes": 176272,
+        "static_ram_data_plus_bss_bytes": 176800
+      }
+    },
+    "capacity_source": "LED_TEST STM32L552xE_FLASH.ld at board source commit 134fe68af273a3634e0a36ed7b1cfc805c9bca63"
+  },
+  "current_refresh_status": {
+    "model_train_base_commit": "60d658bbcb14616c5ec372f26c3a8c2b184e9145",
+    "board_source_commit": "134fe68af273a3634e0a36ed7b1cfc805c9bca63",
+    "fresh_mfcc_firmware_build": "passed",
+    "fresh_mfcc_firmware_flash_verification": "passed",
+    "feature_tensor_parity": {
+      "status": "blocked",
+      "reason": "The MCU is running and waiting in the LPUART RX path, but /dev/ttyACM0 commands time out; the host VCP TX route is not reaching the MCU. A cable/jumper/VCP route check is required before board feature dumps can be captured.",
+      "acceptance": "For the same PCM16 window, board feature int8 values must match the desktop feature quantized with the model input scale/zero-point; maximum mismatch 0 LSB for the strict criterion."
+    },
+    "refreshed_model_output_parity_and_latency": {
+      "status": "pending_feature_uart_repair",
+      "reason": "The source-grouped DB3V experiment changes selected models and TFLite hashes, so the old 57-model run cannot validate the refreshed pack."
+    },
+    "power": {
+      "status": "blocked",
+      "reason": "No supply-current probe or power analyzer is connected. ST-Link target voltage is not a current or power measurement.",
+      "prepared_analysis": "src/experiments/analyze_board_power.py",
+      "prepared_interval_template": "src/experiments/Board_replay_8class/power_intervals_template.csv"
+    }
+  }
+}
