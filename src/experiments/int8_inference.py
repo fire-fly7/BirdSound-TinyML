@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 from collections import Counter
 from dataclasses import dataclass
@@ -13,11 +14,10 @@ import numpy as np
 import tensorflow as tf
 
 
-FEATURE_SHAPES: dict[str, tuple[int, int]] = {
-    "MFCC": (32, 13),
-    "LogMel": (32, 40),
-    "PCEN": (32, 40),
-}
+
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from shared.deployment_contract import CONTRACT, CONTRACT_SHA256, FEATURE_SHAPES, quantize_int8
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,7 @@ class FeatureInputSpec:
     def as_dict(self) -> dict[str, Any]:
         return {
             "feature": self.feature,
+            "frontend_contract_sha256": CONTRACT_SHA256,
             "source_shape": ["batch", *self.feature_shape],
             "source_dtype": self.source_dtype,
             "model_tensor_shape": ["batch", *self.tensor_shape],
@@ -59,7 +60,7 @@ class FeatureInputSpec:
             "channel_dimension": self.channel_dimension,
             "normalization": (
                 "No additional normalization after feature extraction. Quantize with "
-                "q=clip(round(x/input_scale)+input_zero_point,-128,127)."
+                "q=clip(rint_float32(x/input_scale)+input_zero_point,-128,127); nearest-even rounding."
             ),
         }
 
@@ -143,6 +144,7 @@ def validate_strict_int8_model(
         raise ValueError("INT8 input and output must have positive quantization scales.")
     return {
         "strict_int8": True,
+        "frontend_contract_sha256": CONTRACT_SHA256,
         "input": {
             "dtype": "int8",
             "shape_signature": list(input_signature),
@@ -203,6 +205,7 @@ def convert_strict_int8(
             "model_path": str(model_path),
             "tflite_path": str(output_path),
             "tflite_bytes": len(model_content),
+            "tflite_sha256": hashlib.sha256(model_content).hexdigest(),
             "keras_h5_bytes": model_path.stat().st_size,
             "output_activation": output_activation,
             "representative_samples_requested": representative_samples,
@@ -261,11 +264,11 @@ class StrictInt8Predictor:
         for start in range(0, len(features), self.batch_size):
             stop = min(start + self.batch_size, len(features))
             current = np.asarray(features[start:stop], dtype=np.float32)[..., np.newaxis]
-            scaled = np.rint(current / self.input_scale + self.input_zero_point)
+            scaled = np.rint(current / np.float32(self.input_scale)) + self.input_zero_point
             clipped_low += int(np.count_nonzero(scaled < -128))
             clipped_high += int(np.count_nonzero(scaled > 127))
             value_count += int(scaled.size)
-            quantized = np.clip(scaled, -128, 127).astype(np.int8)
+            quantized = quantize_int8(current, self.input_scale, self.input_zero_point)
             padded.fill(np.int8(self.input_zero_point))
             padded[: stop - start] = quantized
             self.interpreter.set_tensor(self.input_detail["index"], padded)

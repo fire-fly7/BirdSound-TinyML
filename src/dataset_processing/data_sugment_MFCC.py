@@ -17,22 +17,18 @@ import librosa
 import numpy as np
 from scipy.fft import dct
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from shared.deployment_contract import CONTRACT, CONTRACT_SHA256, FEATURE_SHAPES, quantize_int8
 
-EXPECTED_SPECIES = (
-    "Agelaius_phoeniceus",
-    "Cardinalis_cardinalis",
-    "Certhia_americana",
-    "Corvus_brachyrhynchos",
-    "Setophaga_aestiva",
-    "Setophaga_ruticilla",
-    "Spinus_tristis",
-    "Turdus_migratorius",
-)
-SAMPLE_RATE = 16_000
-SAMPLES_PER_SLICE = SAMPLE_RATE
-MFCC_COUNT = 13
-MFCC_FRAMES = 32
-MEL_COUNT = 40
+
+
+EXPECTED_SPECIES = tuple(CONTRACT['labels'])
+SAMPLE_RATE = CONTRACT['audio']['sample_rate_hz']
+SAMPLES_PER_SLICE = CONTRACT['audio']['window_samples']
+MFCC_COUNT = CONTRACT['mfcc']['coefficients']
+MFCC_FRAMES = CONTRACT['stft']['frames']
+MEL_COUNT = CONTRACT['mel']['spectral_bands']
 FEATURE_CHOICES = ("mfcc", "logmel", "pcen")
 VALIDATION_RATIO = 0.2
 RANDOM_SEED = 42
@@ -239,25 +235,32 @@ def fixed_feature_frames(feature: np.ndarray) -> np.ndarray:
 
 
 def features_for_segments(segments: np.ndarray, feature_type: str) -> np.ndarray:
-    """Extract one of the comparable per-segment spectral representations."""
-    if feature_type == "mfcc":
-        mel = librosa.feature.melspectrogram(y=segments, sr=SAMPLE_RATE)
-        log_mel = np.stack([librosa.power_to_db(item) for item in mel])
-        features = dct(log_mel, axis=-2, type=2, norm="ortho")[:, :MFCC_COUNT, :]
-    elif feature_type == "logmel":
-        mel = librosa.feature.melspectrogram(
-            y=segments, sr=SAMPLE_RATE, n_mels=MEL_COUNT, power=2.0
-        )
-        features = np.stack([librosa.power_to_db(item, ref=np.max) for item in mel])
-    elif feature_type == "pcen":
-        mel = librosa.feature.melspectrogram(
-            y=segments, sr=SAMPLE_RATE, n_mels=MEL_COUNT, power=1.0
-        )
-        features = np.stack(
-            [librosa.pcen(item * (2**31), sr=SAMPLE_RATE) for item in mel]
-        )
+    """Extract features using the shared, explicit training/firmware contract."""
+    stft, mel_config, pcen = CONTRACT['stft'], CONTRACT['mel'], CONTRACT['pcen']
+    common = dict(sr=SAMPLE_RATE, n_fft=stft['fft_size'], hop_length=stft['hop_length'],
+                  window=stft['window'], center=stft['center'], pad_mode=stft['pad_mode'],
+                  fmin=mel_config['fmin'], fmax=mel_config['fmax'],
+                  htk=mel_config['htk'], norm=mel_config['norm'])
+    db = dict(amin=CONTRACT['db']['amin'], top_db=CONTRACT['db']['top_db'])
+    if feature_type == 'mfcc':
+        mel = librosa.feature.melspectrogram(y=segments, n_mels=mel_config['mfcc_bands'],
+                                            power=CONTRACT['mfcc']['power'], **common)
+        log_mel = np.stack([librosa.power_to_db(item, ref=CONTRACT['mfcc']['db_reference'], **db) for item in mel])
+        features = dct(log_mel, axis=-2, type=CONTRACT['mfcc']['dct_type'],
+                       norm=CONTRACT['mfcc']['dct_norm'])[:, :MFCC_COUNT, :]
+    elif feature_type == 'logmel':
+        mel = librosa.feature.melspectrogram(y=segments, n_mels=MEL_COUNT,
+                                            power=CONTRACT['logmel']['power'], **common)
+        features = np.stack([librosa.power_to_db(item, ref=np.max, **db) for item in mel])
+    elif feature_type == 'pcen':
+        mel = librosa.feature.melspectrogram(y=segments, n_mels=MEL_COUNT,
+                                            power=pcen['magnitude_power'], **common)
+        features = np.stack([librosa.pcen(item * pcen['input_scale'], sr=SAMPLE_RATE,
+                              hop_length=stft['hop_length'], gain=pcen['gain'], bias=pcen['bias'],
+                              power=pcen['power'], time_constant=pcen['time_constant'],
+                              eps=pcen['eps'], max_size=pcen['max_size']) for item in mel])
     else:
-        raise ValueError(f"Unsupported feature type: {feature_type}")
+        raise ValueError(f'Unsupported feature type: {feature_type}')
     return np.stack([fixed_feature_frames(feature.T) for feature in features])
 
 
@@ -359,6 +362,8 @@ def write_dataset(
         stale_path.unlink(missing_ok=True)
     (output_dir / "label_map.json").write_text(json.dumps(label_map, indent=2), encoding="utf-8")
     manifest = {
+        "frontend_contract_sha256": CONTRACT_SHA256,
+        "frontend_contract": CONTRACT,
         "classes": list(EXPECTED_SPECIES),
         "sample_rate": SAMPLE_RATE,
         "feature_type": arguments.feature,

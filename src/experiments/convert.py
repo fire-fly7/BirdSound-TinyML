@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
 
 from int8_inference import FeatureInputSpec, convert_strict_int8, write_metadata
+from shared.deployment_contract import CONTRACT
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -44,6 +46,8 @@ def validate_model(model: tf.keras.Model, model_path: Path) -> None:
         or input_shape[2] != 1
     ):
         raise ValueError(f"Unexpected model input shape: {model.input_shape}")
+    if label_map != {label: index for index, label in enumerate(CONTRACT["labels"])}:
+        raise ValueError("Model label ordering differs from the shared contract.")
     if model.output_shape[-1] != len(label_map):
         raise ValueError("Model output classes do not match its label map.")
 
@@ -70,7 +74,7 @@ def convert_to_tflite(
 
 def convert_tflite_to_header(tflite_path: Path, output_dir: Path) -> Path:
     data = tflite_path.read_bytes()
-    array_name = f"{tflite_path.stem.lower()}_data"
+    array_name = "model_" + re.sub(r"[^a-zA-Z0-9_]", "_", tflite_path.stem.lower()) + "_data"
     header_guard = f"{array_name.upper()}_H"
     align_macro = f"{array_name.upper()}_ALIGN"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +109,7 @@ def parse_arguments() -> argparse.Namespace:
     source.add_argument("--tflite", type=Path, help="Existing TFLite model to convert only to a C header.")
     parser.add_argument("--tflite-output", type=Path)
     parser.add_argument("--header-output-dir", type=Path, default=MODEL_DIR)
-    parser.add_argument("--quantization", choices=("dynamic", "int8"), default="dynamic")
+    parser.add_argument("--quantization", choices=("dynamic", "int8"), default="int8")
     parser.add_argument("--representative-data", type=Path, default=DATASET_DIR / "train_data.npy")
     parser.add_argument("--representative-samples", type=int, default=256)
     parser.add_argument(
@@ -126,7 +130,7 @@ def main() -> None:
     if arguments.tflite:
         tflite_path = arguments.tflite
     else:
-        model_path = arguments.model or MODEL_DIR / "BC_ResNet.h5"
+        model_path = arguments.model or MODEL_DIR / "DS_CNN_Model.h5"
         model = tf.keras.models.load_model(model_path, compile=False)
         validate_model(model, model_path)
         if arguments.representative_samples < 1:
@@ -156,7 +160,7 @@ def main() -> None:
                 [arguments.representative_data],
                 arguments.representative_samples,
             )
-            metadata_path = tflite_path.with_suffix(".int8_metadata.json")
+            metadata_path = (tflite_path.with_name(tflite_path.name.removesuffix(".int8.tflite") + ".int8_metadata.json") if tflite_path.name.endswith(".int8.tflite") else tflite_path.with_suffix(".int8_metadata.json"))
             write_metadata(metadata_path, metadata)
             print(f"Strict INT8 metadata saved to: {metadata_path}")
         else:
