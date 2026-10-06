@@ -1,8 +1,8 @@
-# Model_train · 鸟声分类训练与部署
+# BirdSound-TinyML · 鸟声分类训练与部署
 
 面向八类鸟声的 TinyML 实验项目：以 Xeno-canto 训练 DS-CNN，在 DB3V 与 BirdSet SSW 上进行独立评估及小样本适配，并导出严格 INT8 TFLite 模型。
 
-配套固件：[LED_TEST](https://github.com/fire-fly7/LED_TEST)。两个仓库以 `main` 为当前开发入口，训练端的 `shared/deployment_contract.json` 是共享配置的权威来源。
+配套固件：[BirdSound-STM32](https://github.com/fire-fly7/BirdSound-STM32)。两个仓库以 `main` 为当前开发入口，训练端的 `shared/deployment_contract.json` 是共享配置的权威来源。
 
 ## 当前实现
 
@@ -37,11 +37,11 @@ python tools/generate_deployment.py \
   --output-dir /tmp/deployment/zero_shot_logmel
 ```
 
-两个仓库位于同一文件系统时，可增加 `--firmware-root /path/to/LED_TEST` 同步共享配置和生成器。校验同步状态：
+两个仓库位于同一文件系统时，可增加 `--firmware-root /path/to/BirdSound-STM32` 同步共享配置和生成器。校验同步状态：
 
 ```sh
 python tools/generate_deployment.py \
-  --firmware-root /path/to/LED_TEST \
+  --firmware-root /path/to/BirdSound-STM32 \
   --output-dir /tmp/deployment/check --check
 ```
 

@@ -169,8 +169,8 @@ Xeno-canto/BirdSet/DB3V，并调用
 - Linux 自动运行：[`run_board_replay.py`](../run_board_replay.py)
 - 指标恢复：[`evaluate_board_replay.py`](../evaluate_board_replay.py)
 - 板端测试规格：
-  [LED_TEST BOARD_BENCHMARK_TESTSET.md](https://github.com/fire-fly7/LED_TEST/blob/073a1f1a40d689448b332bac717961475315bebf/docs/BOARD_BENCHMARK_TESTSET.md)
+  [LED_TEST BOARD_BENCHMARK_TESTSET.md](https://github.com/fire-fly7/BirdSound-STM32/blob/073a1f1a40d689448b332bac717961475315bebf/docs/BOARD_BENCHMARK_TESTSET.md)
 - 板端串口协议：
-  [LED_TEST serial_model_client.py](https://github.com/fire-fly7/LED_TEST/blob/073a1f1a40d689448b332bac717961475315bebf/tools/serial_model_client.py)
+  [LED_TEST serial_model_client.py](https://github.com/fire-fly7/BirdSound-STM32/blob/073a1f1a40d689448b332bac717961475315bebf/tools/serial_model_client.py)
 - 板端全模型执行器：
-  [LED_TEST run_board_benchmark.py](https://github.com/fire-fly7/LED_TEST/blob/073a1f1a40d689448b332bac717961475315bebf/tools/run_board_benchmark.py)
+  [LED_TEST run_board_benchmark.py](https://github.com/fire-fly7/BirdSound-STM32/blob/073a1f1a40d689448b332bac717961475315bebf/tools/run_board_benchmark.py)
